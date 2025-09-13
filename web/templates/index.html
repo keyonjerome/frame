@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Video Library</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f6f6;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --border: #e5e7eb;
+      --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b0d11;
+        --card: #12151a;
+        --text: #e5e7eb;
+        --muted: #9aa2ad;
+        --accent: #60a5fa;
+        --border: #1f2937;
+        --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 16px rgba(0,0,0,0.35);
+      }
+    }
+
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 24px 16px 40px; }
+
+    .header { position: sticky; top: 0; z-index: 10; backdrop-filter: saturate(180%) blur(8px); background: color-mix(in oklab, var(--bg) 85%, transparent); border-bottom: 1px solid var(--border); }
+    .header-inner { max-width: 900px; margin: 0 auto; padding: 16px; }
+
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    .note { color: var(--muted); font-size: 14px; }
+
+    .empty { margin-top: 18px; color: var(--muted); font-size: 15px; }
+    .list { display: grid; gap: 12px; margin-top: 20px; }
+
+    .card { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }
+    .title-row { display: flex; align-items: center; gap: 10px; min-width:0; }
+    .name { font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .meta { grid-column: 1 / -1; color: var(--muted); font-size: 14px; }
+    .meta .dot { margin: 0 6px; }
+
+    a.button { justify-self: end; text-decoration: none; color: white; background: var(--accent); padding: 8px 12px; border-radius: 10px; font-weight: 600; font-size: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+    a.button:focus { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+    .copy { border: 1px solid var(--border); background: transparent; color: var(--text); padding: 7px 10px; border-radius: 10px; font-size: 13px; cursor: pointer; }
+
+    @media (max-width: 600px) { .card { grid-template-columns: 1fr; } a.button { width: 100%; text-align: center; } .copy { width: 100%; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-inner">
+      <h1>Video Library</h1>
+      <div class="note">Scan the QR code (created manually) to open this page on your phone.</div>
+    </div>
+  </div>
+
+  <div class="container">
+    {% if not videos %}
+      <div class="empty">No Video's found in {{ video_dir }}.</div>
+    {% endif %}
+
+    <div class="list" role="list">
+      {% for v in videos %}
+        <article class="card" role="listitem">
+          <div class="title-row">
+            <div class="name" title="{{ v.name }}">{{ v.name }}</div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <a class="button" href="{{ url_for('download', filename=v.name) }}" aria-label="Download {{ v.name }}">Download</a>
+            <button class="copy" data-fn="{{ v.name }}" aria-label="Copy link for {{ v.name }}">Copy link</button>
+          </div>
+          <div class="meta">
+            <span>{{ v.size_str }}</span>
+            <span class="dot">•</span>
+            <span>{{ v.modified_str }}</span>
+            <span class="dot">•</span>
+            <span>{{ v.duration_str }}</span>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </div>
+
+  <script>
+    // Copy direct download link to clipboard
+    const DOWNLOAD_BASE = "{{ url_for('download', filename='__FN__') }}";
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.copy');
+      if (!btn) return;
+      const fn = btn.getAttribute('data-fn');
+      if (!fn) return;
+      const href = DOWNLOAD_BASE.replace('__FN__', encodeURIComponent(fn));
+      const url = new URL(href, window.location.origin).toString();
+      try {
+        await navigator.clipboard.writeText(url);
+        btn.textContent = 'Copied!';
+        setTimeout(() => (btn.textContent = 'Copy link'), 1500);
+      } catch {
+        btn.textContent = 'Copy failed';
+        setTimeout(() => (btn.textContent = 'Copy link'), 1500);
+      }
+    });
+  </script>
+</body>
+</html>
