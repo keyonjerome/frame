@@ -1,68 +1,91 @@
 #!/usr/bin/env python3
-# Minimal RealSense demo without color sensor: show depth (and optional IR)
+# Minimal UVC depth demo via OpenCV (Y16) on camera id=0
+# Assumes the device exposes a 16-bit depth stream (millimeters) as UVC.
+# Visualizes depth (colorized). No pyrealsense2 required.
 
-import pyrealsense2 as rs
-import numpy as np
 import cv2
+import numpy as np
+
+CAM_ID = 0
+WIDTH, HEIGHT, FPS = 640, 480, 30
+# Many depth UVC streams output millimeters as uint16
+DEPTH_SCALE_M_PER_UNIT = 0.001  # 1 mm -> 0.001 m
+# For visualization clamp range (meters)
+VIS_MIN_M, VIS_MAX_M = 0.02, 10.0
+
+
+def open_uvc_depth(cam_id=CAM_ID, width=WIDTH, height=HEIGHT, fps=FPS):
+    cap = cv2.VideoCapture(cam_id)
+    # Try to disable color conversion (keep native Y16)
+    try:
+        cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+    except Exception:
+        pass
+    # Request Y16 fourcc where supported
+    try:
+        fourcc = cv2.VideoWriter_fourcc('Y', '1', '6', ' ')
+        cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+    except Exception:
+        pass
+
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    cap.set(cv2.CAP_PROP_FPS, fps)
+
+    if not cap.isOpened():
+        raise RuntimeError(f"Failed to open camera id={cam_id}")
+    return cap
+
+
+def colorize_depth(depth_m: np.ndarray, vmin=VIS_MIN_M, vmax=VIS_MAX_M) -> np.ndarray:
+    d = depth_m.copy()
+    # Clamp for visualization
+    d[d < vmin] = vmin
+    d[d > vmax] = vmax
+    # Normalize to 0..255
+    norm = ((d - vmin) / (vmax - vmin) * 255.0).astype(np.uint8)
+    return cv2.applyColorMap(norm, cv2.COLORMAP_JET)
+
 
 def main():
-    pipeline = rs.pipeline()
-    config = rs.config()
-
-    # Enable DEPTH only (works on depth-only modules like D421)
-    config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-
-    # Try to also enable infrared (optional; if not present, we'll ignore)
-    enable_ir = True
     try:
-        # Infrared comes in two sensors on stereo modules: index 1 (left), 2 (right)
-        # We’ll enable the first (left) if available.
-        config.enable_stream(rs.stream.infrared, 1, 640, 480, rs.format.y8, 30)
-    except Exception:
-        enable_ir = False
+        cap = open_uvc_depth()
+    except Exception as e:
+        print(f"Could not start UVC depth camera: {e}")
+        return
 
-    # Start streaming
-    profile = pipeline.start(config)
-
-    # Get depth scale to map depth units to meters (optional, but handy)
-    depth_sensor = profile.get_device().first_depth_sensor()
-    depth_scale = depth_sensor.get_depth_scale()  # meters per unit
-
-    # Prepare colorizer for nicer visualization of depth
-    colorizer = rs.colorizer()
-    colorizer.set_option(rs.option.color_scheme, 2)  # 0=Jet, 2=Black-to-White, etc.
-
-    cv2.namedWindow("RealSense Depth", cv2.WINDOW_AUTOSIZE)
-    if enable_ir:
-        cv2.namedWindow("RealSense IR", cv2.WINDOW_AUTOSIZE)
+    cv2.namedWindow("UVC Depth", cv2.WINDOW_AUTOSIZE)
 
     try:
         while True:
-            frames = pipeline.wait_for_frames()
-            depth_frame = frames.get_depth_frame()
-            if not depth_frame:
+            ok, frame = cap.read()
+            if not ok:
+                print("[WARN] Failed to read frame")
                 continue
 
-            # Colorize depth for display
-            depth_color = np.asanyarray(colorizer.colorize(depth_frame).get_data())
+            # Expect a single-channel 16-bit frame (uint16). Some backends may deliver 8-bit.
+            if frame.dtype != np.uint16:
+                # Attempt to keep raw data by avoiding conversions; warn once
+                # Convert to 16-bit if possible (fallback will treat as 8-bit depth indices)
+                # Here we just upcast to uint16 to keep pipeline consistent
+                frame = frame.astype(np.uint16)
 
-            # Show depth image
-            cv2.imshow("RealSense Depth", depth_color)
+            # Convert to meters using scale
+            depth_m = frame.astype(np.float32) * DEPTH_SCALE_M_PER_UNIT
 
-            # If IR was enabled and available, show it too
-            if enable_ir:
-                ir_frame = frames.get_infrared_frame(1)  # left IR
-                if ir_frame:
-                    ir_image = np.asanyarray(ir_frame.get_data())
-                    cv2.imshow("RealSense IR", ir_image)
+            # Colorize for display
+            depth_color = colorize_depth(depth_m)
 
-            # Exit on ESC
-            if cv2.waitKey(1) == 27:
+            cv2.imshow("UVC Depth", depth_color)
+            if cv2.waitKey(1) == 27:  # ESC
                 break
-
     finally:
-        pipeline.stop()
+        try:
+            cap.release()
+        except Exception:
+            pass
         cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()
