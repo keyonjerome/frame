@@ -3,7 +3,7 @@ import mediapipe as mp
 import serial
 import time
 
-UART_PORT = "/dev/ttyUSB0"  # wtf is the port number?
+UART_PORT = "/dev/ttyUSB0"  # port number?
 UART_BAUD = 115200
 
 class PeaceSignDetector:
@@ -68,13 +68,16 @@ def main():
             2,
         )
         cv2.imshow("Gesture Detection", frame)
+        current_time = time.time()
+        # Detect peace sign with cooldown to avoid multiple rapid triggers
         if found and not detected:
             print("Peace sign detected!")
             detected = True
             if ser:
                 try:
-                    ser.write(b"START\n")
-                    print("Sent UART trigger: START")
+                    # Send a single character 'P' for simplicity
+                    ser.write(b"P")
+                    print("Sent UART trigger: 'P'")
                 except Exception as e:
                     print(f"UART send failed: {e}")
         if not found and detected:
