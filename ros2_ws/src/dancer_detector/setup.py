@@ -24,6 +24,9 @@ setup(
             'dancer_seg = dancer_detector.dancer_seg_node:main',
             'yolo_ir_realsense = dancer_detector.yolo_ir_realsense_node:main',
             'person_follower = dancer_detector.person_follower_pid:main',
+            'uart_seg_toggle = dancer_detector.uart_seg_toggle:main',
+                    'centroid_to_centerdepth = dancer_detector.centroid_to_centerdepth:main',
+
                                 ],
     },
 )
