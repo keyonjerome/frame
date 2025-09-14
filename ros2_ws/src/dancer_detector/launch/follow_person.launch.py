@@ -45,8 +45,8 @@ def generate_launch_description():
             'img_width': img_w,
             'hfov_deg': hfov_deg,
             'target_dist_m': target_dist,
-            'max_lin_vel': 10.0,       # tune caps here
-            'max_ang_vel': 10.0,
+            'max_lin_vel': 10,       # tune caps here
+            'max_ang_vel': 10,
             'deadband_px': 2.0,
             'deadband_m': 0.03,
             'lp_alpha_err': 0.25,
