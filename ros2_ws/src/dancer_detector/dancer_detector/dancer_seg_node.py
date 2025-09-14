@@ -49,6 +49,8 @@ class DancerSegNode(Node):
         self.declare_parameter('morph_kernel_w', 7)
         self.declare_parameter('morph_kernel_h', 7)
         self.declare_parameter('alpha_mask', 0.35)
+        self.declare_parameter('detection_mode', 'near')     # 'near' or 'far_red'
+        self.declare_parameter('blue_max_norm', 110)         # 0..255, lower = only very near
 
         # add param
         self.declare_parameter('backend', 'realsense')   # 'realsense' or 'uvc'
@@ -73,6 +75,8 @@ class DancerSegNode(Node):
         )
         self.alpha_mask = float(self.get_parameter('alpha_mask').value)
         self.proc_hz = float(self.get_parameter('proc_hz').value)
+        self.detection_mode = str(self.get_parameter('detection_mode').value)
+        self.blue_max_norm = int(self.get_parameter('blue_max_norm').value)
 
         # -------- Publishers / Services --------
         self.pub_overlay = self.create_publisher(Image, '/dancer_detector/overlay', 1)
@@ -132,6 +136,16 @@ class DancerSegNode(Node):
 
         t0 = time.monotonic()
 
+        # Refresh tunable params at runtime without a callback
+        try:
+            self.detection_mode = str(self.get_parameter('detection_mode').value)
+            self.blue_max_norm = int(self.get_parameter('blue_max_norm').value)
+            self.red_min_norm = int(self.get_parameter('red_min_norm').value)
+            self.depth_min = float(self.get_parameter('depth_min_m').value)
+            self.depth_max = float(self.get_parameter('depth_max_m').value)
+        except Exception:
+            pass
+
         depth_m = self.read_depth()
         if depth_m is None:
             return
@@ -154,15 +168,19 @@ class DancerSegNode(Node):
         norm = ((d - self.depth_min) / denom * 255.0).astype(np.uint8)
         norm[depth_m <= 0] = 0
 
-        # Threshold for “darkest red” regions (farthest in JET)
-        mask = (norm >= self.red_min_norm).astype(np.uint8) * 255
+        # Threshold: choose near (blue) or far (red)
+        if str(self.detection_mode).lower() == 'near':
+            mask = (norm <= self.blue_max_norm).astype(np.uint8) * 255
+        else:
+            # "far_red" mode (default previously)
+            mask = (norm >= self.red_min_norm).astype(np.uint8) * 255
         mask = morph_close(mask, self.kernel_wh, iterations=1)
 
         # Remove small blobs
         min_area = max(1, int(self.min_blob_area_frac * H * W))
         mask = remove_small(mask, min_area)
 
-        # Connected components — select component with highest median norm
+        # Connected components — select component by score
         num, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
         bbox: Optional[Tuple[int, int, int, int]] = None
         centroid: Optional[Tuple[float, float]] = None
@@ -176,7 +194,11 @@ class DancerSegNode(Node):
                 if xs.size == 0:
                     continue
                 med_norm = float(np.median(norm[ys, xs]))
-                score = med_norm
+                # Prefer nearer (lower norm) in 'near' mode; farthest in 'far_red'
+                if str(self.detection_mode).lower() == 'near':
+                    score = 255.0 - med_norm
+                else:
+                    score = med_norm
                 if score > best_score:
                     best_score = score
                     x, y, w, h, _ = stats[i]
