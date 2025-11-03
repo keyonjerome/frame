@@ -1,0 +1,8 @@
+<library path="libir_to_rgb_remap_component">
+  <class
+    name="ir_to_rgb_remap::IrToRgbRemapNode"
+    type="ir_to_rgb_remap::IrToRgbRemapNode"
+    base_class_type="rclcpp_components::NodeFactory">
+    <description>IR mono8 to RGB8 + camera info relay</description>
+  </class>
+</library>
