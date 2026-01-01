@@ -10,6 +10,10 @@ setup(
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', ['launch/nikon_mtplv.launch.py']),
+        ('share/' + package_name + '/scripts', [
+            'scripts/nikon_usb_recover.sh',
+            'scripts/start_mtplvcap_d3500.sh',
+        ]),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

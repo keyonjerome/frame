@@ -1,15 +1,15 @@
-import os
-
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler, TimerAction
 from launch.event_handlers import OnProcessExit, OnProcessStart
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description() -> LaunchDescription:
-    this_dir = os.path.dirname(__file__)
-    default_scripts_dir = os.path.abspath(os.path.join(this_dir, '..', '..', '..', 'scripts'))
+    default_scripts_dir = PathJoinSubstitution(
+        [FindPackageShare('nikon_mtplv'), 'scripts']
+    )
 
     scripts_dir_arg = DeclareLaunchArgument(
         'scripts_dir',
