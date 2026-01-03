@@ -1,7 +1,7 @@
-# Mount host SSH keys into container (read-only)
 -v $HOME/.ssh:/home/admin/.ssh:ro
-
-# Optional but recommended: git identity
 -v $HOME/.gitconfig:/home/admin/.gitconfig:ro
+-v /dev/bus/usb:/dev/bus/usb 
+--device /dev/bus/usb:/dev/bus/usb
+-v /run/udev:/run/udev:ro
+--group-add $(getent group plugdev | cut -d: -f3)
 
--e NVIDIA_VISIBLE_DEVICES=all

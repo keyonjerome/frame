@@ -28,7 +28,8 @@ def generate_launch_description():
         'align_depth': False,
         # keep things light
         'pointcloud.enable': False,
-        'unite_imu_method': 'none',
+        # 0 == none, 1 == copy, 2 == linear_interpolation
+        'unite_imu_method': 0,
     }
 
     # Container that will host RealSense + depth metric conversion
@@ -54,16 +55,17 @@ def generate_launch_description():
                 # ],
             ),
             # Convert depth (uint16 mm) → float32 meters on topic /depth
-            ComposableNode(
-                package='isaac_ros_depth_image_proc',
-                plugin='nvidia::isaac_ros::depth_image_proc::ConvertMetricNode',
-                name='convert_metric',
-                remappings=[
-                    # Use the unaligned rectified depth image (not aligned_to_color)
-                    ( 'image_raw', f'/{camera_name}/depth/image_rect_raw'),
-                    ( 'image',     'depth'),
-                ],
-            ),
+            # Depth metric conversion is optional; disable to avoid missing plugin errors
+            # ComposableNode(
+            #     package='isaac_ros_depth_image_proc',
+            #     plugin='nvidia::isaac_ros::depth_image_proc::ConvertMetricNode',
+            #     name='convert_metric',
+            #     remappings=[
+            #         # Use the unaligned rectified depth image (not aligned_to_color)
+            #         ( 'image_raw', f'/{camera_name}/depth/image_rect_raw'),
+            #         ( 'image',     'depth'),
+            #     ],
+            # ),
             # 4) The IR→RGB remap node (standalone executable)
             #    - Subscribes to /<camera>/infra1/image_rect_raw + camera_info
             #    - Publishes /image_rect (rgb8) + /camera_info_rect
@@ -72,8 +74,8 @@ def generate_launch_description():
                 plugin='ir_to_rgb_remap::IrToRgbRemapNode',
                 name='ir_to_rgb_remap',
                 parameters=[{
-                    'in_image':        [ '/', camera_name, '/infra1/image_rect_raw' ],
-                    'in_camera_info':  [ '/', camera_name, '/infra1/camera_info'   ],
+                    'in_image':        f'/{camera_name}/infra1/image_rect_raw',
+                    'in_camera_info':  f'/{camera_name}/infra1/camera_info',
                     'out_image':       '/image_rect',
                     'out_camera_info': '/camera_info_rect',
                 }]

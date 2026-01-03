@@ -15,7 +15,8 @@ def generate_launch_description():
         'depth_width': 640, 'depth_height': 480, 'depth_fps': 30,
         'align_depth': False,
         'pointcloud.enable': False,
-        'unite_imu_method': 'none',
+        # 0 == none, 1 == copy, 2 == linear_interpolation
+        'unite_imu_method': 0,
     }
 
     container = ComposableNodeContainer(
@@ -48,8 +49,8 @@ def generate_launch_description():
                 plugin='ir_to_rgb_remap::IrToRgbRemapNode',
                 name='ir_to_rgb_remap',
                 parameters=[{
-                    'in_image':       f'/{camera_name}/{camera_name}/infra1/image_rect_raw',
-                    'in_camera_info': f'/{camera_name}/{camera_name}/infra1/camera_info',
+                    'in_image':       f'/{camera_name}/infra1/image_rect_raw',
+                    'in_camera_info': f'/{camera_name}/infra1/camera_info',
                     'out_image':      '/image_rect',
                     'out_camera_info':'/camera_info_rect',
                 }],

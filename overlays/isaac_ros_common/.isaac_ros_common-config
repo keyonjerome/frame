@@ -1,1 +1,3 @@
 CONFIG_IMAGE_KEY=ros2_humble.frame
+# Use custom docker args (USB passthrough, plugdev group) for mtplvcap
+DOCKER_ARGS_FILE=.isaac_ros_dev-dockerargs

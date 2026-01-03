@@ -29,14 +29,16 @@ def generate_launch_description() -> LaunchDescription:
         description='URL to the mtplvcap stream (http://127.0.0.1:<mtplvcap_port>)',
     )
 
-    recover_action = ExecuteProcess(
-        cmd=[
-            PathJoinSubstitution(
-                [LaunchConfiguration('scripts_dir'), 'nikon_usb_recover.sh']
-            )
-        ],
-        output='screen',
-    )
+    # Recovery is disabled for now; re-enable by uncommenting the ExecuteProcess below.
+    recover_action = TimerAction(period=0.0, actions=[])
+    # recover_action = ExecuteProcess(
+    #     cmd=[
+    #         PathJoinSubstitution(
+    #             [LaunchConfiguration('scripts_dir'), 'nikon_usb_recover.sh']
+    #         )
+    #     ],
+    #     output='screen',
+    # )
 
     mtplvcap_action = ExecuteProcess(
         cmd=[
@@ -56,13 +58,16 @@ def generate_launch_description() -> LaunchDescription:
     )
 
     start_mtplvcap_on_recover_exit = RegisterEventHandler(
-        OnProcessExit(target_action=recover_action, on_exit=[mtplvcap_action])
+        OnProcessExit(
+            target_action=recover_action,
+            on_exit=[TimerAction(period=2.0, actions=[mtplvcap_action])]
+        )
     )
 
     start_node_on_mtplvcap_start = RegisterEventHandler(
         OnProcessStart(
             target_action=mtplvcap_action,
-            on_start=[TimerAction(period=1.0, actions=[stream_node])],
+            on_start=[TimerAction(period=4.0, actions=[stream_node])],
         )
     )
 
