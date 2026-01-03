@@ -3,7 +3,7 @@ set -euo pipefail
 
 # ---- Config you might tweak ----
 CONTAINER_NAME="frame_teleop"
-ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
+ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-30}"
 IMAGE="ros:humble"
 
 # Optional: keep a teleop config on the host and mount it in
@@ -138,4 +138,25 @@ cmd_status() {
 usage() {
   cat <<EOF
 Usage:
-  $0 start    # sta
+  $0 start    # start the shared ROS2 Humble teleop container (detached)
+  $0 joy      # run joy_node in the running container (Terminal 1)
+  $0 teleop   # run teleop_twist_joy in the running container (Terminal 2)
+  $0 shell    # get an interactive shell in the container
+  $0 status   # show container status
+  $0 stop     # stop and remove the container
+
+Notes:
+- Set ROS_DOMAIN_ID on your Jetson and laptop to the same value (default here: ${ROS_DOMAIN_ID})
+- Optional config file on host: ~/.ros/teleop.yaml (mounted read-only into container)
+EOF
+}
+
+case "${1:-}" in
+  start)  cmd_start ;;
+  joy)    cmd_joy ;;
+  teleop) cmd_teleop ;;
+  shell)  cmd_shell ;;
+  status) cmd_status ;;
+  stop)   cmd_stop ;;
+  *)      usage; exit 1 ;;
+esac
