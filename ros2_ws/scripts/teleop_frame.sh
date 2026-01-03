@@ -3,7 +3,7 @@ set -euo pipefail
 
 # ---- Config you might tweak ----
 CONTAINER_NAME="frame_teleop"
-ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-30}"
+ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
 IMAGE="ros:humble"
 
 # Optional: keep a teleop config on the host and mount it in
