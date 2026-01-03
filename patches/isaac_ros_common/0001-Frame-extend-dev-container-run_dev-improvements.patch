@@ -1,0 +1,60 @@
+From cde262b5af6c91a362f31f3741cc3ee2cc9c7c46 Mon Sep 17 00:00:00 2001
+From: Keyon Jerome <keyonjerome@gmail.com>
+Date: Fri, 2 Jan 2026 20:52:00 -0500
+Subject: [PATCH] Frame: extend dev container + run_dev improvements
+
+---
+ docker/Dockerfile.realsense | 12 +++++++++---
+ scripts/run_dev.sh          |  2 +-
+ 2 files changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/docker/Dockerfile.realsense b/docker/Dockerfile.realsense
+index 2c91710..ff38adb 100644
+--- a/docker/Dockerfile.realsense
++++ b/docker/Dockerfile.realsense
+@@ -11,9 +11,9 @@
+ ARG BASE_IMAGE=ubuntu:22.04
+ FROM ${BASE_IMAGE}
+ 
+-ARG LIBREALSENSE_SOURCE_VERSION=v2.55.1
+-ARG REALSENSE_ROS_GIT_URL=https://github.com/NVIDIA-ISAAC-ROS/realsense-ros.git
+-ARG REALSENSE_ROS_VERSION=release/4.51.1-isaac
++ARG LIBREALSENSE_SOURCE_VERSION=v2.56.5
++ARG REALSENSE_ROS_GIT_URL=https://github.com/IntelRealSense/realsense-ros.git
++ARG REALSENSE_ROS_VERSION=ros2-master
+ 
+ COPY scripts/build-librealsense.sh /opt/realsense/build-librealsense.sh
+ COPY scripts/install-realsense-dependencies.sh /opt/realsense/install-realsense-dependencies.sh
+@@ -42,3 +42,9 @@ RUN --mount=type=cache,target=/var/cache/apt \
+     && fakeroot debian/rules binary \
+     && cd ../ && apt-get install -y ./*.deb && rm ./*.deb \
+     && cd ../ && rm -Rf realsense-ros
++
++# RUN apt-get update && apt-get install -y \
++#     ros-humble-isaac-ros-yolov8 \
++#     ros-humble-isaac-ros-dnn-image-encoder \
++#     ros-humble-isaac-ros-tensor-rt \
++#     ros-humble-isaac-ros-examples
+diff --git a/scripts/run_dev.sh b/scripts/run_dev.sh
+index 86f08e5..5d6b5b3 100755
+--- a/scripts/run_dev.sh
++++ b/scripts/run_dev.sh
+@@ -9,6 +9,7 @@
+ # license agreement from NVIDIA CORPORATION is strictly prohibited.
+ 
+ set -e
++set -x
+ 
+ ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+ source $ROOT/utils/print_color.sh
+@@ -240,7 +241,6 @@ if [[ -n $SSH_AUTH_SOCK ]]; then
+ fi
+ 
+ if [[ $PLATFORM == "aarch64" ]]; then
+-    DOCKER_ARGS+=("-e NVIDIA_VISIBLE_DEVICES=nvidia.com/gpu=all,nvidia.com/pva=all")
+     DOCKER_ARGS+=("-v /usr/bin/tegrastats:/usr/bin/tegrastats")
+     DOCKER_ARGS+=("-v /tmp/:/tmp/")
+     DOCKER_ARGS+=("-v /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra")
+-- 
+2.34.1
+

@@ -1,0 +1,7 @@
+# Mount host SSH keys into container (read-only)
+-v $HOME/.ssh:/home/admin/.ssh:ro
+
+# Optional but recommended: git identity
+-v $HOME/.gitconfig:/home/admin/.gitconfig:ro
+
+-e NVIDIA_VISIBLE_DEVICES=all

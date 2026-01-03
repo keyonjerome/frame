@@ -1,0 +1,18 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+# Dependencies for building mtplvcap
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git build-essential cmake pkg-config \
+    libmtp-dev libusb-1.0-0-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build mtplvcap and install it into /usr/local/bin
+RUN git clone --depth=1 https://github.com/puhitaku/mtplvcap.git /tmp/mtplvcap \
+    && cd /tmp/mtplvcap \
+    && make -j"$(nproc)" \
+    && install -m 0755 mtplvcap /usr/local/bin/mtplvcap \
+    && rm -rf /tmp/mtplvcap
+
+# (Optional) verify it's runnable
+RUN mtplvcap --help || true

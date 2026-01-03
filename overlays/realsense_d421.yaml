@@ -1,0 +1,6 @@
+/realsense2_camera:
+  ros__parameters:
+    enable_infra1: true
+    enable_color: false
+    enable_depth: true
+
