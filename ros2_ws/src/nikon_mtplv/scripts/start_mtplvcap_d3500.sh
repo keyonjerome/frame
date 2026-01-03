@@ -38,3 +38,4 @@ read -r -a extra_args <<<"${MTPLVCAP_EXTRA_ARGS}"
 
 log "Starting mtplvcap on ${MTPLVCAP_HOST}:${MTPLVCAP_PORT} (VID:PID ${MTPLVCAP_VENDOR_ID}:${MTPLVCAP_PRODUCT_ID})..."
 exec "${MTPLVCAP_BIN}" "${args[@]}" "${extra_args[@]}"
+# mtplvcap

@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 import threading
 import time
+from typing import Optional
 
 import cv2
+import numpy as np
+import requests
 from cv_bridge import CvBridge
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
-from typing import Optional
 
 
 class MtplvCapStreamNode(Node):
     def __init__(self) -> None:
         super().__init__('mtplvcap_stream')
-        self.declare_parameter('stream_url', 'http://127.0.0.1:5600')
+        self.declare_parameter('stream_url', 'http://127.0.0.1:5600/mjpeg')
         self.declare_parameter('image_topic', 'nikon/image_raw')
         self.declare_parameter('frame_id', 'nikon_camera')
         self.declare_parameter('reconnect_delay_sec', 1.0)
@@ -35,36 +37,57 @@ class MtplvCapStreamNode(Node):
         self._stop_event.set()
         return super().destroy_node()
 
-    def _open_capture(self) -> Optional[cv2.VideoCapture]:
-        cap = cv2.VideoCapture(self.stream_url)
-        if not cap.isOpened():
+    def _open_stream(self) -> Optional[requests.Response]:
+        try:
+            resp = requests.get(
+                self.stream_url,
+                stream=True,
+                headers={'User-Agent': 'mtplvcap-stream-node'},
+                timeout=5,
+            )
+            resp.raise_for_status()
+            return resp
+        except Exception as exc:  # noqa: BLE001
+            self.get_logger().warn(
+                f'Unable to open mtplvcap stream at {self.stream_url}: {exc}'
+            )
             return None
-        return cap
 
     def _run(self) -> None:
         while rclpy.ok() and not self._stop_event.is_set():
-            cap = self._open_capture()
-            if cap is None:
-                self.get_logger().warn(
-                    f'Unable to open mtplvcap stream at {self.stream_url}. '
-                    f'Retrying in {self.reconnect_delay_sec:.1f}s.'
-                )
+            resp = self._open_stream()
+            if resp is None:
                 time.sleep(self.reconnect_delay_sec)
                 continue
 
-            self.get_logger().info(f'Connected to mtplvcap stream at {self.stream_url}')
-            while rclpy.ok() and not self._stop_event.is_set():
-                ok, frame = cap.read()
-                if not ok or frame is None:
-                    self.get_logger().warn('Stream read failed; reconnecting...')
+            buf = bytearray()
+
+            for chunk in resp.iter_content(chunk_size=4096):
+                if self._stop_event.is_set():
                     break
+                if not chunk:
+                    continue
+                buf.extend(chunk)
 
-                msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
-                msg.header.stamp = self.get_clock().now().to_msg()
-                msg.header.frame_id = self.frame_id
-                self.publisher.publish(msg)
+                soi = buf.find(b'\xff\xd8')
+                eoi = buf.find(b'\xff\xd9')
+                if soi != -1 and eoi != -1 and eoi > soi:
+                    jpg = bytes(buf[soi:eoi + 2])
+                    buf = buf[eoi + 2:]  # keep remainder
 
-            cap.release()
+                    frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                    if frame is None:
+                        continue
+
+                    msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
+                    msg.header.stamp = self.get_clock().now().to_msg()
+                    msg.header.frame_id = self.frame_id
+                    self.publisher.publish(msg)
+
+            try:
+                resp.close()
+            except Exception:
+                pass
             time.sleep(self.reconnect_delay_sec)
 
 

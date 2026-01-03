@@ -38,6 +38,6 @@ read -r -a extra_args <<<"${MTPLVCAP_EXTRA_ARGS}"
 
 log "Starting mtplvcap on ${MTPLVCAP_HOST}:${MTPLVCAP_PORT} (VID:PID ${MTPLVCAP_VENDOR_ID}:${MTPLVCAP_PRODUCT_ID})..."
 log "Final mtplvcap command: ${MTPLVCAP_BIN}" "${args[@]}" "${extra_args[@]}"
-exec "${MTPLVCAP_BIN}" "${args[@]}" "${extra_args[@]}"
+# exec "${MTPLVCAP_BIN}" "${args[@]}" "${extra_args[@]}"
 
-# mtplvcap -host 127.0.0.1 -port 5600 -vendor-id 0x04b0 -product-id 0x0445
+mtplvcap -host 127.0.0.1 -port 5600 -vendor-id 0x04b0 -product-id 0x0445
