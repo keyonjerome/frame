@@ -5,17 +5,12 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, TextSubstitution
+from launch.substitutions import LaunchConfiguration, TextSubstitution
 from launch_ros.actions import Node
 
 
 def generate_launch_description() -> LaunchDescription:
-    bringup_share = get_package_share_directory('frame_bringup')
     ir_share = get_package_share_directory('ir_to_rgb_remap')
-
-    teleop_config = PathJoinSubstitution(
-        [bringup_share, 'config', 'teleop_twist_joy_xbox.yaml']
-    )
 
     use_rqt_arg = DeclareLaunchArgument(
         'use_rqt',
@@ -26,11 +21,6 @@ def generate_launch_description() -> LaunchDescription:
         'rqt_image_topic',
         default_value='/image_rect',
         description='Image topic to show in rqt_image_view.',
-    )
-    joy_dev_arg = DeclareLaunchArgument(
-        'joy_dev',
-        default_value='/dev/input/js0',
-        description='Joystick device file.',
     )
     record_button_arg = DeclareLaunchArgument(
         'record_button',
@@ -84,26 +74,6 @@ def generate_launch_description() -> LaunchDescription:
         )
     )
 
-    joy_node = Node(
-        package='joy',
-        executable='joy_node',
-        name='joy_node',
-        output='screen',
-        parameters=[{
-            'dev': LaunchConfiguration('joy_dev'),
-            'deadzone': 0.1,
-            'autorepeat_rate': 20.0,
-        }],
-    )
-
-    teleop_node = Node(
-        package='teleop_twist_joy',
-        executable='teleop_node',
-        name='teleop_twist_joy_node',
-        output='screen',
-        parameters=[teleop_config],
-    )
-
     record_node = Node(
         package='frame_bringup',
         executable='joy_record_toggle',
@@ -129,23 +99,10 @@ def generate_launch_description() -> LaunchDescription:
         parameters=[{'stream_url': LaunchConfiguration('stream_url')}],
     )
 
-    rqt_node = Node(
-        package='rqt_image_view',
-        executable='rqt_image_view',
-        name='rqt_image_view',
-        arguments=[
-            '--ros-args',
-            '-r',
-            [TextSubstitution(text='image:='), LaunchConfiguration('rqt_image_topic')],
-        ],
-        condition=IfCondition(LaunchConfiguration('use_rqt')),
-    )
-
     return LaunchDescription(
         [
             use_rqt_arg,
             rqt_image_topic_arg,
-            joy_dev_arg,
             record_button_arg,
             record_output_dir_arg,
             record_topics_arg,
@@ -156,10 +113,7 @@ def generate_launch_description() -> LaunchDescription:
             storage_id_arg,
             stream_url_arg,
             d421_launch,
-            joy_node,
-            teleop_node,
             record_node,
             stream_node,
-            rqt_node,
         ]
     )

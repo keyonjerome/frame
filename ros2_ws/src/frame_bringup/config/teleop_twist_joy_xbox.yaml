@@ -3,9 +3,10 @@ teleop_twist_joy_node:
     axis_linear: 1
     scale_linear: 0.6
     scale_linear_turbo: 1.0
-    axis_angular: 3
+    axis_angular: 0
     scale_angular: 1.8
     enable_button: 5
     enable_turbo_button: 4
-    require_enable_button: true
+    # Allow publishing without holding the deadman; bumpers still work for enable/turbo.
+    require_enable_button: false
     use_stamped: false
