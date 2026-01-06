@@ -12,6 +12,7 @@ setup(
         ('share/' + package_name + '/launch', [
             'launch/frame_all.launch.py',
             'launch/frame_all_stream_only.launch.py',
+            'launch/teleop_only.launch.py'
         ]),
         ('share/' + package_name + '/config', ['config/teleop_twist_joy_xbox.yaml']),
     ],
