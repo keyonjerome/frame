@@ -1,6 +1,13 @@
 import os
 from pathlib import Path
 
+
+def _default_video_dir() -> str:
+    for parent in Path(__file__).resolve().parents:
+        if parent.name == 'frame':
+            return str(parent / 'videos')
+    return os.path.join(os.path.expanduser('~'), 'videos')
+
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
@@ -8,13 +15,6 @@ from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
-
-
-def _default_video_dir() -> str:
-    for parent in Path(__file__).resolve().parents:
-        if parent.name == 'frame':
-            return str(parent / 'videos')
-    return os.path.join(os.path.expanduser('~'), 'videos')
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -46,7 +46,7 @@ def generate_launch_description() -> LaunchDescription:
     )
     record_topics_arg = DeclareLaunchArgument(
         'record_topics',
-        default_value='/image_rect,/camera_info_rect,/nikon/image_raw',
+        default_value='/image_rect,/camera_info_rect,/camera/depth/image_rect_raw,/nikon/image_raw',
         description='Comma-separated list of topics to record.',
     )
     bag_prefix_arg = DeclareLaunchArgument(

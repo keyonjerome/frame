@@ -4,9 +4,10 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import cv2
+import numpy as np
 import rclpy
 import rosbag2_py
 from cv_bridge import CvBridge
@@ -30,7 +31,7 @@ class JoyRecordToggleNode(Node):
         self.declare_parameter('record_button', 3)
         self.declare_parameter(
             'record_topics',
-            '/image_rect,/camera_info_rect,/nikon/image_raw',
+            '/image_rect,/camera_info_rect,/camera/depth/image_rect_raw,/nikon/image_raw',
         )
         self.declare_parameter('output_dir', default_output)
         self.declare_parameter('video_output_dir', default_video_output)
@@ -200,11 +201,9 @@ class JoyRecordToggleNode(Node):
             if topic not in image_topics:
                 continue
 
-            try:
-                msg: Image = deserialize_message(data, Image)
-                frame = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-            except Exception as exc:  # noqa: BLE001
-                self.get_logger().warn(f'Frame decode failed on {topic}: {exc}')
+            msg: Image = deserialize_message(data, Image)
+            frame, is_color = self._decode_frame(msg, topic)
+            if frame is None:
                 continue
 
             height, width = frame.shape[:2]
@@ -216,6 +215,7 @@ class JoyRecordToggleNode(Node):
                     fourcc,
                     self.mp4_fps,
                     (width, height),
+                    isColor=is_color,
                 )
                 if not writer.isOpened():
                     self.get_logger().error(
@@ -236,6 +236,36 @@ class JoyRecordToggleNode(Node):
 
         for topic, count in frame_counts.items():
             self.get_logger().info(f'Finished {topic} ({count} frames)')
+
+    def _decode_frame(
+        self, msg: Image, topic: str
+    ) -> Tuple[Optional[np.ndarray], bool]:
+        try:
+            frame = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            return frame, True
+        except Exception:
+            pass
+
+        try:
+            frame = self._bridge.imgmsg_to_cv2(msg, desired_encoding='mono8')
+            return frame, False
+        except Exception:
+            pass
+
+        try:
+            frame = self._bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+        except Exception as exc:  # noqa: BLE001
+            self.get_logger().warn(f'Frame decode failed on {topic}: {exc}')
+            return None, False
+
+        if frame.dtype != np.uint8:
+            frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
+            frame = frame.astype(np.uint8)
+
+        if frame.ndim == 3 and frame.shape[2] == 3:
+            return frame, True
+
+        return frame, False
 
 
 def main() -> None:
