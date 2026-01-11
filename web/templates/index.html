@@ -48,6 +48,8 @@
 
     .card { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }
     .title-row { display: flex; align-items: center; gap: 10px; min-width:0; }
+    .title-stack { min-width: 0; }
+    .preview { width: 140px; aspect-ratio: 16 / 9; border-radius: 10px; border: 1px solid var(--border); background: #0b0b0b; object-fit: cover; }
     .name { font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .meta { grid-column: 1 / -1; color: var(--muted); font-size: 14px; }
     .meta .dot { margin: 0 6px; }
@@ -57,7 +59,7 @@
 
     .copy { border: 1px solid var(--border); background: transparent; color: var(--text); padding: 7px 10px; border-radius: 10px; font-size: 13px; cursor: pointer; }
 
-    @media (max-width: 600px) { .card { grid-template-columns: 1fr; } a.button { width: 100%; text-align: center; } .copy { width: 100%; } }
+    @media (max-width: 600px) { .card { grid-template-columns: 1fr; } .title-row { flex-direction: column; align-items: flex-start; } .preview { width: 100%; } a.button { width: 100%; text-align: center; } .copy { width: 100%; } }
   </style>
 </head>
 <body>
@@ -77,7 +79,10 @@
       {% for v in videos %}
         <article class="card" role="listitem">
           <div class="title-row">
-            <div class="name" title="{{ v.name }}">{{ v.name }}</div>
+            <video class="preview" src="{{ url_for('preview', filename=v.name) }}" muted playsinline preload="metadata" controls aria-label="Preview of {{ v.name }}"></video>
+            <div class="title-stack">
+              <div class="name" title="{{ v.name }}">{{ v.name }}</div>
+            </div>
           </div>
           <div style="display:flex; gap:8px;">
             <a class="button" href="{{ url_for('download', filename=v.name) }}" aria-label="Download {{ v.name }}">Download</a>

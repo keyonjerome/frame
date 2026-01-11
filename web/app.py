@@ -145,6 +145,34 @@ def index() -> str:
     )
 
 
+@app.get("/preview/<path:filename>")
+def preview(filename: str):
+    # Sanitize path and ensure it's inside VIDEO_DIR
+    safe_path = safe_join(VIDEO_DIR, filename)
+    if not safe_path:
+        abort(404)
+    file_path = Path(safe_path)
+    if not file_path.exists() or not file_path.is_file():
+        abort(404)
+
+    mime, _ = mimetypes.guess_type(str(file_path))
+    mime = mime or "application/octet-stream"
+
+    # Inline playback for previews (range requests enabled)
+    resp = send_file(
+        path_or_file=str(file_path),
+        mimetype=mime,
+        as_attachment=False,
+        conditional=True,
+        etag=True,
+        last_modified=file_path.stat().st_mtime,
+    )
+    # Security hardening
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("Cache-Control", "private, max-age=3600, must-revalidate")
+    return resp
+
+
 @app.get("/download/<path:filename>")
 def download(filename: str):
     # Sanitize path and ensure it's inside VIDEO_DIR
