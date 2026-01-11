@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -7,6 +8,13 @@ from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, TextSubstitution
 from launch_ros.actions import Node
+
+
+def _default_video_dir() -> str:
+    for parent in Path(__file__).resolve().parents:
+        if parent.name == 'frame':
+            return str(parent / 'videos')
+    return os.path.join(os.path.expanduser('~'), 'videos')
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -55,7 +63,7 @@ def generate_launch_description() -> LaunchDescription:
     )
     video_output_dir_arg = DeclareLaunchArgument(
         'video_output_dir',
-        default_value=os.path.join(os.path.expanduser('~'), 'rosbags'),
+        default_value=_default_video_dir(),
         description='Directory to store MP4 exports for the web UI.',
     )
     convert_to_mp4_arg = DeclareLaunchArgument(

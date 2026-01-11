@@ -15,17 +15,25 @@ from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import Image, Joy
 
 
+def _default_video_output_dir() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if parent.name == 'frame':
+            return parent / 'videos'
+    return Path.home() / 'videos'
+
+
 class JoyRecordToggleNode(Node):
     def __init__(self) -> None:
         super().__init__('joy_record_toggle')
         default_output = str(Path.home() / 'rosbags')
+        default_video_output = str(_default_video_output_dir())
         self.declare_parameter('record_button', 3)
         self.declare_parameter(
             'record_topics',
             '/image_rect,/camera_info_rect,/nikon/image_raw',
         )
         self.declare_parameter('output_dir', default_output)
-        self.declare_parameter('video_output_dir', default_output)
+        self.declare_parameter('video_output_dir', default_video_output)
         self.declare_parameter('bag_prefix', 'dual_cam')
         self.declare_parameter('storage_id', '')
         self.declare_parameter('convert_to_mp4', True)
@@ -69,9 +77,8 @@ class JoyRecordToggleNode(Node):
         if self.record_button < 0 or self.record_button >= len(msg.buttons):
             if not self._topic_warning_emitted:
                 self.get_logger().error(
-                    'record_button index %d out of range for Joy message (%d buttons)',
-                    self.record_button,
-                    len(msg.buttons),
+                    f'record_button index {self.record_button} out of range for Joy message '
+                    f'({len(msg.buttons)} buttons)'
                 )
                 self._topic_warning_emitted = True
             return
@@ -107,7 +114,7 @@ class JoyRecordToggleNode(Node):
             )
             return
 
-        self.get_logger().info('Recording started: %s', str(bag_path))
+        self.get_logger().info(f'Recording started: {bag_path}')
         self._current_bag_path = bag_path
 
     def _stop_recording(self) -> None:
@@ -165,7 +172,7 @@ class JoyRecordToggleNode(Node):
             reader.open(storage_options, converter_options)
         except Exception as exc:  # noqa: BLE001
             self.get_logger().error(
-                'Failed to open bag %s for conversion: %s', str(bag_path), exc
+                f'Failed to open bag {bag_path} for conversion: {exc}'
             )
             return
 
@@ -175,9 +182,8 @@ class JoyRecordToggleNode(Node):
         ]
         if not image_topics:
             self.get_logger().info(
-                'No image topics to convert for bag %s (topics=%s)',
-                str(bag_path),
-                ','.join(topic_types.keys()),
+                f'No image topics to convert for bag {bag_path} '
+                f'(topics={",".join(topic_types.keys())})'
             )
             return
 
@@ -186,9 +192,7 @@ class JoyRecordToggleNode(Node):
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
         self.get_logger().info(
-            'Converting bag %s to MP4 (topics=%s)',
-            str(bag_path),
-            ','.join(image_topics),
+            f'Converting bag {bag_path} to MP4 (topics={",".join(image_topics)})'
         )
 
         while reader.has_next():
@@ -200,7 +204,7 @@ class JoyRecordToggleNode(Node):
                 msg: Image = deserialize_message(data, Image)
                 frame = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             except Exception as exc:  # noqa: BLE001
-                self.get_logger().warn('Frame decode failed on %s: %s', topic, exc)
+                self.get_logger().warn(f'Frame decode failed on {topic}: {exc}')
                 continue
 
             height, width = frame.shape[:2]
@@ -215,12 +219,12 @@ class JoyRecordToggleNode(Node):
                 )
                 if not writer.isOpened():
                     self.get_logger().error(
-                        'Could not open MP4 writer for %s', str(video_path)
+                        f'Could not open MP4 writer for {video_path}'
                     )
                     continue
                 writers[topic] = writer
                 frame_counts[topic] = 0
-                self.get_logger().info('Writing %s', str(video_path))
+                self.get_logger().info(f'Writing {video_path}')
 
             writer = writers.get(topic)
             if writer:
@@ -231,9 +235,7 @@ class JoyRecordToggleNode(Node):
             writer.release()
 
         for topic, count in frame_counts.items():
-            self.get_logger().info(
-                'Finished %s (%d frames)', topic, count
-            )
+            self.get_logger().info(f'Finished {topic} ({count} frames)')
 
 
 def main() -> None:
