@@ -14,7 +14,10 @@ setup(
             'launch/frame_all_stream_only.launch.py',
             'launch/teleop_only.launch.py'
         ]),
-        ('share/' + package_name + '/config', ['config/teleop_twist_joy_xbox.yaml']),
+        ('share/' + package_name + '/config', [
+            'config/teleop_twist_joy_xbox.yaml',
+            'config/velocity_smoother.yaml',
+        ]),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

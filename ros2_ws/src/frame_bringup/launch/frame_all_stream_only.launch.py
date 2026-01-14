@@ -23,6 +23,9 @@ def generate_launch_description() -> LaunchDescription:
     default_teleop_params = PathJoinSubstitution(
         [bringup_share, 'config', 'teleop_twist_joy_xbox.yaml']
     )
+    default_velocity_smoother_params = PathJoinSubstitution(
+        [bringup_share, 'config', 'velocity_smoother.yaml']
+    )
 
     use_rqt_arg = DeclareLaunchArgument(
         'use_rqt',
@@ -84,6 +87,21 @@ def generate_launch_description() -> LaunchDescription:
         default_value=default_teleop_params,
         description='teleop_twist_joy params file to load.',
     )
+    velocity_smoother_params_arg = DeclareLaunchArgument(
+        'velocity_smoother_params',
+        default_value=default_velocity_smoother_params,
+        description='Velocity smoother params file to load.',
+    )
+    cmd_vel_in_arg = DeclareLaunchArgument(
+        'cmd_vel_in',
+        default_value='cmd_vel_raw',
+        description='Input cmd_vel topic for the velocity smoother.',
+    )
+    cmd_vel_out_arg = DeclareLaunchArgument(
+        'cmd_vel_out',
+        default_value='cmd_vel',
+        description='Output cmd_vel topic for the robot base.',
+    )
 
     d421_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -121,6 +139,28 @@ def generate_launch_description() -> LaunchDescription:
         name='teleop_twist_joy_node',
         output='screen',
         parameters=[LaunchConfiguration('teleop_params')],
+        remappings=[('cmd_vel', LaunchConfiguration('cmd_vel_in'))],
+    )
+    velocity_smoother_node = Node(
+        package='nav2_velocity_smoother',
+        executable='velocity_smoother',
+        name='velocity_smoother',
+        output='screen',
+        parameters=[LaunchConfiguration('velocity_smoother_params')],
+        remappings=[
+            ('cmd_vel', LaunchConfiguration('cmd_vel_in')),
+            ('cmd_vel_smoothed', LaunchConfiguration('cmd_vel_out')),
+        ],
+    )
+    velocity_smoother_manager_node = Node(
+        package='nav2_lifecycle_manager',
+        executable='lifecycle_manager',
+        name='velocity_smoother_manager',
+        output='screen',
+        parameters=[{
+            'autostart': True,
+            'node_names': ['velocity_smoother'],
+        }],
     )
 
     return LaunchDescription(
@@ -137,9 +177,14 @@ def generate_launch_description() -> LaunchDescription:
             storage_id_arg,
             stream_url_arg,
             teleop_params_arg,
+            velocity_smoother_params_arg,
+            cmd_vel_in_arg,
+            cmd_vel_out_arg,
             d421_launch,
             record_node,
             stream_node,
             teleop_node,
+            velocity_smoother_node,
+            velocity_smoother_manager_node,
         ]
     )
