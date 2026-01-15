@@ -2,6 +2,9 @@
 -v $HOME/.gitconfig:/home/admin/.gitconfig:ro
 -v /dev/bus/usb:/dev/bus/usb 
 --device /dev/bus/usb:/dev/bus/usb
+--device=/dev/video4
+--device=/dev/video5
+--device=/dev/media2
 -v /run/udev:/run/udev:ro
 --group-add $(getent group plugdev | cut -d: -f3)
 

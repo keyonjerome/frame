@@ -7,6 +7,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libmtp-dev libusb-1.0-0-dev \
     && rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update && apt-get install -y ffmpeg
+
+RUN apt-get update && apt-get install -y v4l-utils
+
+RUN mknod -m 666 /dev/video4 c 81 4 && sudo mknod -m 666 /dev/video5 c 81 5 && mknod -m 666 /dev/media2 c 505 2
+
+
 # Build mtplvcap and install it into /usr/local/bin
 RUN git clone --depth=1 https://github.com/puhitaku/mtplvcap.git /tmp/mtplvcap \
     && cd /tmp/mtplvcap \

@@ -72,6 +72,11 @@ def generate_launch_description() -> LaunchDescription:
         default_value='30.0',
         description='Frame rate for MP4 export.',
     )
+    topic_fps_arg = DeclareLaunchArgument(
+        'topic_fps',
+        default_value='',
+        description='Optional per-topic FPS map (e.g. /nikon/image_raw=30,/image_rect=30).',
+    )
     storage_id_arg = DeclareLaunchArgument(
         'storage_id',
         default_value='',
@@ -176,8 +181,10 @@ def generate_launch_description() -> LaunchDescription:
             'video_output_dir': LaunchConfiguration('video_output_dir'),
             'convert_to_mp4': LaunchConfiguration('convert_to_mp4'),
             'mp4_fps': LaunchConfiguration('mp4_fps'),
+            'topic_fps': LaunchConfiguration('topic_fps'),
             'bag_prefix': LaunchConfiguration('bag_prefix'),
             'storage_id': LaunchConfiguration('storage_id'),
+            'log_ffmpeg_stderr': True,
         }],
     )
 
@@ -199,6 +206,10 @@ def generate_launch_description() -> LaunchDescription:
             'use_v4l2': LaunchConfiguration('use_v4l2'),
             'reconnect_delay_sec': LaunchConfiguration('reconnect_delay_sec'),
             'encoding': LaunchConfiguration('encoding'),
+            'video_output_dir': LaunchConfiguration('video_output_dir'),
+            'record_prefix': LaunchConfiguration('bag_prefix'),
+            'record_service': '/usb_cam_stream/record',
+            'log_ffmpeg_stderr': True,
         }],
     )
     teleop_node = Node(
@@ -242,6 +253,7 @@ def generate_launch_description() -> LaunchDescription:
             video_output_dir_arg,
             convert_to_mp4_arg,
             mp4_fps_arg,
+            topic_fps_arg,
             storage_id_arg,
             device_index_arg,
             device_path_arg,

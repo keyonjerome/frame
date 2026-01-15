@@ -5,7 +5,7 @@ velocity_smoother:
     feedback: "OPEN_LOOP"
     max_velocity: [0.6, 0.0, 1.8]
     min_velocity: [-0.6, 0.0, -1.8]
-    max_accel: [1.0, 0.0, 2.0]
-    max_decel: [-0.5, 0.0, -1.0]
+    max_accel: [2.0, 0.0, 4.0]
+    max_decel: [-1.0, 0.0, -2.0]
     deadband_velocity: [0.0, 0.0, 0.0]
     velocity_timeout: 0.6

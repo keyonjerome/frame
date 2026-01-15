@@ -57,7 +57,14 @@ start_container() {
     exit 0
   fi
 
-  XAUTH="${XAUTHORITY:-$HOME/.Xauthority}"
+  XAUTH_SRC="${XAUTHORITY:-$HOME/.Xauthority}"
+  XAUTH_DST="/tmp/.Xauthority"
+  XAUTH_ARGS=()
+  if [[ -f "${XAUTH_SRC}" ]]; then
+    XAUTH_ARGS=(-e XAUTHORITY="${XAUTH_DST}" -v "${XAUTH_SRC}:${XAUTH_DST}:ro")
+  else
+    echo "Warning: XAUTHORITY file not found (${XAUTH_SRC}); X11 auth may fail."
+  fi
 
   echo "Launching ${CONTAINER_NAME} with ROS_DOMAIN_ID=${ROS_DOMAIN_ID}, joystick=${JOY_DEV}"
   docker run -d \
@@ -68,9 +75,9 @@ start_container() {
     --privileged \
     -e DISPLAY \
     -e QT_X11_NO_MITSHM=1 \
+    "${XAUTH_ARGS[@]}" \
     -e ROS_DOMAIN_ID="${ROS_DOMAIN_ID}" \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-    -v "${XAUTH}:${XAUTH}:ro" \
     -v "${WS_DIR}:${CONTAINER_WS}:rw" \
     -v /dev/input:/dev/input:rw \
     -v /run/udev:/run/udev:ro \
