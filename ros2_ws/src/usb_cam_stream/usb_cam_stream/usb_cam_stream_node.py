@@ -11,8 +11,6 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_srvs.srv import SetBool
 
-from .ffmpeg_writer import FfmpegWriter
-
 
 def _default_video_output_dir() -> Path:
     for parent in Path(__file__).resolve().parents:
@@ -73,9 +71,9 @@ class UsbCamStreamNode(Node):
         self._stop_event = threading.Event()
         self._capture: Optional[cv2.VideoCapture] = None
         self._record_enabled = False
-        self._record_writer: Optional[FfmpegWriter] = None
         self._record_session_name: Optional[str] = None
-        self._record_failed = False
+        self._record_output_path: Optional[Path] = None
+        self._restart_capture = False
         self.create_service(SetBool, self.record_service, self._on_record_toggle)
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
@@ -89,44 +87,72 @@ class UsbCamStreamNode(Node):
     def _device_descriptor(self) -> Union[int, str]:
         return self.device_path if self.device_path else self.device_index
 
+    def _gst_device_path(self) -> str:
+        if self.device_path:
+            return self.device_path
+        return f'/dev/video{self.device_index}'
+
+    def _gst_caps(self) -> str:
+        caps = []
+        if self.width > 0:
+            caps.append(f'width={self.width}')
+        if self.height > 0:
+            caps.append(f'height={self.height}')
+        if self.fps > 0.0:
+            fps_int = max(1, int(round(self.fps)))
+            caps.append(f'framerate={fps_int}/1')
+        caps_str = ','.join(caps)
+        fmt = self.fourcc.strip().upper()
+        if fmt in ('MJPG', 'MJPEG'):
+            base = 'image/jpeg'
+        else:
+            base = 'video/x-raw'
+        return f'{base},{caps_str}' if caps_str else base
+
+    def _build_gst_pipeline(self, record_path: Optional[Path]) -> str:
+        device = self._gst_device_path()
+        caps = self._gst_caps()
+        fmt = self.fourcc.strip().upper()
+        if fmt in ('MJPG', 'MJPEG'):
+            decode = 'jpegdec ! videoconvert'
+        else:
+            decode = 'videoconvert'
+
+        if record_path:
+            record_location = str(record_path)
+            return (
+                f'v4l2src device={device} ! {caps} ! {decode} ! tee name=t '
+                't. ! queue ! videoconvert ! video/x-raw,format=BGR ! '
+                'appsink drop=true max-buffers=1 sync=false '
+                't. ! queue ! videoconvert ! video/x-raw,format=I420 ! '
+                f'avenc_mpeg4 ! mp4mux fragment-duration=1000 streamable=true '
+                f'! filesink location="{record_location}"'
+            )
+
+        return (
+            f'v4l2src device={device} ! {caps} ! {decode} ! '
+            'video/x-raw,format=BGR ! appsink drop=true max-buffers=1 sync=false'
+        )
+
     def _open_capture(self) -> Optional[cv2.VideoCapture]:
-        device = self._device_descriptor()
-        backend = cv2.CAP_V4L2 if self.use_v4l2 else cv2.CAP_ANY
+        pipeline = self._build_gst_pipeline(
+            self._record_output_path if self._record_enabled else None
+        )
         try:
-            cap = cv2.VideoCapture(device, backend)
+            cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
         except Exception as exc:  # noqa: BLE001
-            self.get_logger().warn(f'Unable to open USB camera {device}: {exc}')
+            self.get_logger().warn(f'Unable to open USB camera pipeline: {exc}')
             return None
 
         if not cap.isOpened():
-            self.get_logger().warn(f'Unable to open USB camera {device}.')
+            self.get_logger().warn('Unable to open USB camera pipeline.')
             return None
-
-        if self.buffer_size > 0:
-            try:
-                cap.set(cv2.CAP_PROP_BUFFERSIZE, self.buffer_size)
-            except Exception:
-                pass
-
-        if self.fourcc:
-            try:
-                fourcc = cv2.VideoWriter_fourcc(*self.fourcc)
-                cap.set(cv2.CAP_PROP_FOURCC, fourcc)
-            except Exception:
-                pass
-
-        if self.width > 0:
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-        if self.height > 0:
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        if self.fps > 0.0:
-            cap.set(cv2.CAP_PROP_FPS, self.fps)
 
         actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         actual_fps = cap.get(cv2.CAP_PROP_FPS)
         self.get_logger().info(
-            f'USB camera opened ({device}), {actual_w}x{actual_h} @ {actual_fps:.2f} fps'
+            f'USB camera opened (GStreamer), {actual_w}x{actual_h} @ {actual_fps:.2f} fps'
         )
 
         return cap
@@ -148,79 +174,40 @@ class UsbCamStreamNode(Node):
     def _safe_topic(self) -> str:
         return self.image_topic.strip('/').replace('/', '_') or 'image'
 
-    def _select_record_fps(self, cap_fps: float) -> float:
-        if self.record_fps > 0.0:
-            return self.record_fps
-        if cap_fps > 0.0:
-            return cap_fps
-        return 30.0
-
     def _on_record_toggle(self, request: SetBool.Request, response: SetBool.Response):
         if request.data:
             if not self._record_enabled:
-                self._record_enabled = True
-                self._record_failed = False
-                if self._record_session_name is None:
-                    self._record_session_name = self._format_session_name()
+                self._start_recording()
             response.success = True
             response.message = 'Recording started.'
         else:
-            self._record_enabled = False
             self._stop_recording()
             response.success = True
             response.message = 'Recording stopped.'
         return response
 
+    def _start_recording(self) -> None:
+        self._record_enabled = True
+        if self._record_session_name is None:
+            self._record_session_name = self._format_session_name()
+        self.video_output_dir.mkdir(parents=True, exist_ok=True)
+        self._record_output_path = (
+            self.video_output_dir / f'{self._record_session_name}_{self._safe_topic()}.mp4'
+        )
+        self.get_logger().info(f'Recording USB MP4 to {self._record_output_path}')
+        self._restart_capture = True
+
     def _stop_recording(self) -> None:
         self._record_enabled = False
-        if self._record_writer:
-            self._record_writer.close()
-        self._record_writer = None
         self._record_session_name = None
-        self._record_failed = False
-
-    def _maybe_start_writer(self, frame) -> None:
-        if self._record_failed or self._record_writer is not None:
-            return
-        output_dir = self.video_output_dir
-        output_dir.mkdir(parents=True, exist_ok=True)
-        session_name = self._record_session_name or self._format_session_name()
-        self._record_session_name = session_name
-        output_path = output_dir / f'{session_name}_{self._safe_topic()}.mp4'
-        height, width = frame.shape[:2]
-        cap_fps = 0.0
-        if self._capture:
-            cap_fps = self._capture.get(cv2.CAP_PROP_FPS) or 0.0
-        fps = self._select_record_fps(float(cap_fps))
-        writer = FfmpegWriter(
-            output_path=output_path,
-            width=width,
-            height=height,
-            fps=fps,
-            ffmpeg_path=self.ffmpeg_path,
-            log_stderr=self.log_ffmpeg_stderr,
-            logger=self.get_logger(),
-        )
-        if not writer.is_open():
-            self._record_failed = True
-            return
-        self._record_writer = writer
-        self.get_logger().info(f'Recording USB MP4 to {output_path}')
-
-    def _write_record_frame(self, frame) -> None:
-        if not self._record_enabled:
-            return
-        self._maybe_start_writer(frame)
-        if self._record_writer is None:
-            return
-        if not self._record_writer.write(frame):
-            self._record_failed = True
-            self._record_writer.close()
-            self._record_writer = None
+        self._record_output_path = None
+        self._restart_capture = True
 
     def _run(self) -> None:
         while rclpy.ok() and not self._stop_event.is_set():
-            if self._capture is None:
+            if self._capture is None or self._restart_capture:
+                self._restart_capture = False
+                self._release_capture()
                 self._capture = self._open_capture()
                 if self._capture is None:
                     time.sleep(self.reconnect_delay_sec)
@@ -237,8 +224,6 @@ class UsbCamStreamNode(Node):
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.header.frame_id = self.frame_id
             self.publisher.publish(msg)
-            if self._record_enabled:
-                self._write_record_frame(frame)
 
         self._release_capture()
 
