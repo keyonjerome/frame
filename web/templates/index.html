@@ -72,14 +72,13 @@
 
   <div class="container">
     {% if not videos %}
-      <div class="empty">No Video's found in {{ video_dir }}.</div>
+      <div class="empty">No Videos found in {{ video_dir }}.</div>
     {% endif %}
 
     <div class="list" role="list">
       {% for v in videos %}
         <article class="card" role="listitem">
           <div class="title-row">
-            <video class="preview" src="{{ url_for('preview', filename=v.name) }}" muted playsinline preload="metadata" controls aria-label="Preview of {{ v.name }}"></video>
             <div class="title-stack">
               <div class="name" title="{{ v.name }}">{{ v.name }}</div>
             </div>

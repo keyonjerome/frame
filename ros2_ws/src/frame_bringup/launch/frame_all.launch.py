@@ -8,6 +8,13 @@ def _default_video_dir() -> str:
             return str(parent / 'videos')
     return os.path.join(os.path.expanduser('~'), 'videos')
 
+
+def _default_rosbag_dir() -> str:
+    for parent in Path(__file__).resolve().parents:
+        if parent.name == 'frame':
+            return str(parent / 'rosbags')
+    return os.path.join(os.path.expanduser('~'), 'rosbags')
+
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
@@ -48,12 +55,12 @@ def generate_launch_description() -> LaunchDescription:
     )
     record_output_dir_arg = DeclareLaunchArgument(
         'record_output_dir',
-        default_value=os.path.join(os.path.expanduser('~'), 'rosbags'),
+        default_value=_default_rosbag_dir(),
         description='Directory to store recorded rosbag files.',
     )
     record_topics_arg = DeclareLaunchArgument(
         'record_topics',
-        default_value='/image_rect,/camera_info_rect,/camera/depth/image_rect_raw,/nikon/image_raw',
+        default_value='/image_rect,/camera_info_rect,/camera/depth/image_rect_raw',
         description='Comma-separated list of topics to record.',
     )
     bag_prefix_arg = DeclareLaunchArgument(
@@ -66,25 +73,15 @@ def generate_launch_description() -> LaunchDescription:
         default_value=_default_video_dir(),
         description='Directory to store MP4 exports for the web UI.',
     )
-    convert_to_mp4_arg = DeclareLaunchArgument(
-        'convert_to_mp4',
-        default_value='true',
-        description='Convert recorded image topics to MP4 automatically.',
-    )
-    mp4_fps_arg = DeclareLaunchArgument(
-        'mp4_fps',
-        default_value='30.0',
-        description='Frame rate for MP4 export.',
-    )
-    topic_fps_arg = DeclareLaunchArgument(
-        'topic_fps',
-        default_value='',
-        description='Optional per-topic FPS map (e.g. /nikon/image_raw=30,/image_rect=30).',
-    )
     storage_id_arg = DeclareLaunchArgument(
         'storage_id',
         default_value='',
         description='Optional rosbag2 storage plugin (e.g., mcap).',
+    )
+    usb_record_topic_arg = DeclareLaunchArgument(
+        'usb_record_topic',
+        default_value='/usb_cam_stream/record',
+        description='Topic to toggle USB recording.',
     )
 
     d421_launch = IncludeLaunchDescription(
@@ -128,12 +125,9 @@ def generate_launch_description() -> LaunchDescription:
             'record_topics': LaunchConfiguration('record_topics'),
             'output_dir': LaunchConfiguration('record_output_dir'),
             'video_output_dir': LaunchConfiguration('video_output_dir'),
-            'convert_to_mp4': LaunchConfiguration('convert_to_mp4'),
-            'mp4_fps': LaunchConfiguration('mp4_fps'),
-            'topic_fps': LaunchConfiguration('topic_fps'),
             'bag_prefix': LaunchConfiguration('bag_prefix'),
             'storage_id': LaunchConfiguration('storage_id'),
-            'log_ffmpeg_stderr': True,
+            'usb_record_topic': LaunchConfiguration('usb_record_topic'),
         }],
     )
 
@@ -159,10 +153,8 @@ def generate_launch_description() -> LaunchDescription:
             record_topics_arg,
             bag_prefix_arg,
             video_output_dir_arg,
-            convert_to_mp4_arg,
-            mp4_fps_arg,
-            topic_fps_arg,
             storage_id_arg,
+            usb_record_topic_arg,
             d421_launch,
             nikon_launch,
             joy_node,

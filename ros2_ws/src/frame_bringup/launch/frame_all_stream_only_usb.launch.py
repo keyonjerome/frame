@@ -8,6 +8,13 @@ def _default_video_dir() -> str:
             return str(parent / 'videos')
     return os.path.join(os.path.expanduser('~'), 'videos')
 
+
+def _default_rosbag_dir() -> str:
+    for parent in Path(__file__).resolve().parents:
+        if parent.name == 'frame':
+            return str(parent / 'rosbags')
+    return os.path.join(os.path.expanduser('~'), 'rosbags')
+
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
@@ -44,12 +51,12 @@ def generate_launch_description() -> LaunchDescription:
     )
     record_output_dir_arg = DeclareLaunchArgument(
         'record_output_dir',
-        default_value=os.path.join(os.path.expanduser('~'), 'rosbags'),
+        default_value=_default_rosbag_dir(),
         description='Directory to store recorded rosbag files.',
     )
     record_topics_arg = DeclareLaunchArgument(
         'record_topics',
-        default_value='/image_rect,/camera_info_rect,/camera/depth/image_rect_raw,/nikon/image_raw',
+        default_value='/image_rect,/camera_info_rect,/camera/depth/image_rect_raw',
         description='Comma-separated list of topics to record.',
     )
     bag_prefix_arg = DeclareLaunchArgument(
@@ -61,21 +68,6 @@ def generate_launch_description() -> LaunchDescription:
         'video_output_dir',
         default_value=_default_video_dir(),
         description='Directory to store MP4 exports for the web UI.',
-    )
-    convert_to_mp4_arg = DeclareLaunchArgument(
-        'convert_to_mp4',
-        default_value='true',
-        description='Convert recorded image topics to MP4 automatically.',
-    )
-    mp4_fps_arg = DeclareLaunchArgument(
-        'mp4_fps',
-        default_value='30.0',
-        description='Frame rate for MP4 export.',
-    )
-    topic_fps_arg = DeclareLaunchArgument(
-        'topic_fps',
-        default_value='',
-        description='Optional per-topic FPS map (e.g. /nikon/image_raw=30,/image_rect=30).',
     )
     storage_id_arg = DeclareLaunchArgument(
         'storage_id',
@@ -89,18 +81,8 @@ def generate_launch_description() -> LaunchDescription:
     )
     device_path_arg = DeclareLaunchArgument(
         'device_path',
-        default_value='',
+        default_value='/dev/video4',
         description='USB camera device path (e.g., /dev/video2).',
-    )
-    image_topic_arg = DeclareLaunchArgument(
-        'image_topic',
-        default_value='nikon/image_raw',
-        description='Image topic to publish.',
-    )
-    frame_id_arg = DeclareLaunchArgument(
-        'frame_id',
-        default_value='nikon_camera',
-        description='Frame ID for published images.',
     )
     width_arg = DeclareLaunchArgument(
         'width',
@@ -122,25 +104,10 @@ def generate_launch_description() -> LaunchDescription:
         default_value='MJPG',
         description='FourCC pixel format (empty string to skip).',
     )
-    buffer_size_arg = DeclareLaunchArgument(
-        'buffer_size',
-        default_value='1',
-        description='Capture buffer size (lower reduces latency).',
-    )
-    use_v4l2_arg = DeclareLaunchArgument(
-        'use_v4l2',
-        default_value='true',
-        description='Use the V4L2 backend on Linux.',
-    )
-    reconnect_delay_arg = DeclareLaunchArgument(
-        'reconnect_delay_sec',
-        default_value='1.0',
-        description='Seconds to wait before reconnecting on failure.',
-    )
-    encoding_arg = DeclareLaunchArgument(
-        'encoding',
-        default_value='bgr8',
-        description='Image encoding for published frames.',
+    usb_record_topic_arg = DeclareLaunchArgument(
+        'usb_record_topic',
+        default_value='/usb_cam_stream/record',
+        description='Topic to toggle USB recording.',
     )
     teleop_params_arg = DeclareLaunchArgument(
         'teleop_params',
@@ -179,12 +146,9 @@ def generate_launch_description() -> LaunchDescription:
             'record_topics': LaunchConfiguration('record_topics'),
             'output_dir': LaunchConfiguration('record_output_dir'),
             'video_output_dir': LaunchConfiguration('video_output_dir'),
-            'convert_to_mp4': LaunchConfiguration('convert_to_mp4'),
-            'mp4_fps': LaunchConfiguration('mp4_fps'),
-            'topic_fps': LaunchConfiguration('topic_fps'),
             'bag_prefix': LaunchConfiguration('bag_prefix'),
             'storage_id': LaunchConfiguration('storage_id'),
-            'log_ffmpeg_stderr': True,
+            'usb_record_topic': LaunchConfiguration('usb_record_topic'),
         }],
     )
 
@@ -196,20 +160,13 @@ def generate_launch_description() -> LaunchDescription:
         parameters=[{
             'device_index': LaunchConfiguration('device_index'),
             'device_path': LaunchConfiguration('device_path'),
-            'image_topic': LaunchConfiguration('image_topic'),
-            'frame_id': LaunchConfiguration('frame_id'),
             'width': LaunchConfiguration('width'),
             'height': LaunchConfiguration('height'),
             'fps': LaunchConfiguration('fps'),
             'fourcc': LaunchConfiguration('fourcc'),
-            'buffer_size': LaunchConfiguration('buffer_size'),
-            'use_v4l2': LaunchConfiguration('use_v4l2'),
-            'reconnect_delay_sec': LaunchConfiguration('reconnect_delay_sec'),
-            'encoding': LaunchConfiguration('encoding'),
             'video_output_dir': LaunchConfiguration('video_output_dir'),
             'record_prefix': LaunchConfiguration('bag_prefix'),
-            'record_service': '/usb_cam_stream/record',
-            'log_ffmpeg_stderr': True,
+            'record_command_topic': LaunchConfiguration('usb_record_topic'),
         }],
     )
     teleop_node = Node(
@@ -251,22 +208,14 @@ def generate_launch_description() -> LaunchDescription:
             record_topics_arg,
             bag_prefix_arg,
             video_output_dir_arg,
-            convert_to_mp4_arg,
-            mp4_fps_arg,
-            topic_fps_arg,
             storage_id_arg,
             device_index_arg,
             device_path_arg,
-            image_topic_arg,
-            frame_id_arg,
             width_arg,
             height_arg,
             fps_arg,
             fourcc_arg,
-            buffer_size_arg,
-            use_v4l2_arg,
-            reconnect_delay_arg,
-            encoding_arg,
+            usb_record_topic_arg,
             teleop_params_arg,
             velocity_smoother_params_arg,
             cmd_vel_in_arg,

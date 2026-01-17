@@ -23,3 +23,6 @@ RUN git clone --depth=1 https://github.com/puhitaku/mtplvcap.git /tmp/mtplvcap \
 
 # (Optional) verify it's runnable
 RUN mtplvcap --help || true
+
+RUN apt-get update && apt-get install -y python3-gi gir1.2-gstreamer-1.0
+RUN apt-get update && apt-get install -y alsa-utils

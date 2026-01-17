@@ -20,10 +20,10 @@ def generate_launch_description():
         # modest resolution to keep GPU mem low
         'infra1_width': 640,
         'infra1_height': 480,
-        'infra1_fps': 30,
+        'infra1_fps': 60,
         'depth_width': 640,
         'depth_height': 480,
-        'depth_fps': 30,
+        'depth_fps': 60,
         # don’t align depth to color (there is no color); we’ll use depth/image_rect_raw
         'align_depth': False,
         # keep things light

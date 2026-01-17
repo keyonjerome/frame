@@ -13,5 +13,5 @@ teleop_twist_joy_node:
     enable_button: 5
     enable_turbo_button: 4
     # Allow publishing without holding the deadman; bumpers still work for enable/turbo.
-    require_enable_button: false
+    require_enable_button: true
     use_stamped: false

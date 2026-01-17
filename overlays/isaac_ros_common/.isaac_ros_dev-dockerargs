@@ -5,6 +5,7 @@
 --device=/dev/video4
 --device=/dev/video5
 --device=/dev/media2
+--device /dev/snd --group-add audio
 -v /run/udev:/run/udev:ro
 --group-add $(getent group plugdev | cut -d: -f3)
 

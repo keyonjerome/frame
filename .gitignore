@@ -232,3 +232,6 @@ pnpm-debug.log*
 *.prototxt.txt
 *.names
 *.cfg
+
+
+rosbags/
