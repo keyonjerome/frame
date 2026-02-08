@@ -177,6 +177,15 @@ def generate_launch_description() -> LaunchDescription:
         parameters=[LaunchConfiguration('teleop_params')],
         remappings=[('cmd_vel', LaunchConfiguration('cmd_vel_in'))],
     )
+    servo_joy_node = Node(
+        package='frame_servo_control',
+        executable='dual_servo_joy',
+        name='dual_servo_joy',
+        output='screen',
+        parameters=[{
+            'axis_index': 4,
+        }],
+    )
     velocity_smoother_node = Node(
         package='nav2_velocity_smoother',
         executable='velocity_smoother',
@@ -224,6 +233,7 @@ def generate_launch_description() -> LaunchDescription:
             record_node,
             stream_node,
             teleop_node,
+            servo_joy_node,
             velocity_smoother_node,
             velocity_smoother_manager_node,
         ]
