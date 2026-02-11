@@ -2,6 +2,7 @@
 Hack The North 2025
 Keyon Jerome, Inzaghi, Rishabh Sharma, Arsal Khan
 
+**NOTE**: SEE ros2_ws folder for updated launch instructions and system specifics. This project is no longer using Raspberry Pi hardware.
 
 **Objective**: Build a single-target dance recording robot with an iRobot Create 3 Educational Robot base, and an Intel Realsense D421 Depth camera.
 
