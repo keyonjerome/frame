@@ -76,7 +76,7 @@ def generate_launch_description() -> LaunchDescription:
     )
     device_index_arg = DeclareLaunchArgument(
         'device_index',
-        default_value='0',
+        default_value='1',
         description='USB camera index (ignored if device_path is set).',
     )
     device_path_arg = DeclareLaunchArgument(
