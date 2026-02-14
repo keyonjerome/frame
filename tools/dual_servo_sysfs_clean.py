@@ -30,7 +30,7 @@ def describe_pwm(pwm, label):
 
 # ===== Joint limits (geometric) =====
 MIN_ANGLE = 20
-MAX_ANGLE = 40
+MAX_ANGLE = 30
 
 # ===== Timing =====
 STEP_DELAY_S = 0.015
