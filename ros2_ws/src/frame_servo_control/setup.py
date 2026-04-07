@@ -9,6 +9,7 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/config', ['config/dual_servo_control.yaml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -20,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'dual_servo_joy = frame_servo_control.dual_servo_joy_node:main',
+            'dual_servo_control = frame_servo_control.dual_servo_control_node:main',
         ],
     },
 )

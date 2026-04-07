@@ -12,6 +12,7 @@
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>frame_servo_control</exec_depend>
   <exec_depend>joy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
   <exec_depend>rosbag2_py</exec_depend>

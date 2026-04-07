@@ -27,11 +27,15 @@ from launch_ros.actions import Node
 def generate_launch_description() -> LaunchDescription:
     ir_share = get_package_share_directory('ir_to_rgb_remap')
     bringup_share = get_package_share_directory('frame_bringup')
+    servo_share = get_package_share_directory('frame_servo_control')
     default_teleop_params = PathJoinSubstitution(
         [bringup_share, 'config', 'teleop_twist_joy_xbox.yaml']
     )
     default_velocity_smoother_params = PathJoinSubstitution(
         [bringup_share, 'config', 'velocity_smoother.yaml']
+    )
+    default_servo_params = PathJoinSubstitution(
+        [servo_share, 'config', 'dual_servo_control.yaml']
     )
 
     use_rqt_arg = DeclareLaunchArgument(
@@ -119,6 +123,11 @@ def generate_launch_description() -> LaunchDescription:
         default_value=default_velocity_smoother_params,
         description='Velocity smoother params file to load.',
     )
+    servo_params_arg = DeclareLaunchArgument(
+        'servo_params',
+        default_value=default_servo_params,
+        description='Dual servo controller params file to load.',
+    )
     cmd_vel_in_arg = DeclareLaunchArgument(
         'cmd_vel_in',
         default_value='cmd_vel_raw',
@@ -179,12 +188,10 @@ def generate_launch_description() -> LaunchDescription:
     )
     servo_joy_node = Node(
         package='frame_servo_control',
-        executable='dual_servo_joy',
-        name='dual_servo_joy',
+        executable='dual_servo_control',
+        name='dual_servo_control',
         output='screen',
-        parameters=[{
-            'axis_index': 4,
-        }],
+        parameters=[LaunchConfiguration('servo_params')],
     )
     velocity_smoother_node = Node(
         package='nav2_velocity_smoother',
@@ -227,6 +234,7 @@ def generate_launch_description() -> LaunchDescription:
             usb_record_topic_arg,
             teleop_params_arg,
             velocity_smoother_params_arg,
+            servo_params_arg,
             cmd_vel_in_arg,
             cmd_vel_out_arg,
             d421_launch,

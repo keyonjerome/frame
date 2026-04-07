@@ -1,0 +1,9 @@
+dual_servo_control:
+  ros__parameters:
+    joy_topic: joy
+    axis_index: 4
+    invert_axis: false
+    startup_hold_s: 3.0
+    reset_button_index: 2
+    reset_angle_deg: 45.0
+    angle_range_deg: 25.0
