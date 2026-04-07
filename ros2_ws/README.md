@@ -26,3 +26,7 @@ Required tutorials:
     2. Start the ISAAC ROS YOLOV8 node with yolov8-nano: `ros2 launch ir_to_rgb_remap isaac_ros_yolo_launch.py  model_file_path:=${ISAAC_ROS_WS}/isaac_ros_assets/models/yolov8/yolov8n.onnx engine_file_path:=${ISAAC_ROS_WS}/isaac_ros_assets/models/yolov8/yolov8n.plan`
     3. Run the visualizer: `ros2 run isaac_ros_yolov8 isaac_ros_yolov8_visualizer.py`
     4. View the output: `ros2 run rqt_image_view rqt_image_view /yolov8_processed_image`
+
+
+Setup note:
+- For the Archer T3U (Tp-Link) network adapter, this tutorial was followed to install dependencies: https://community.tp-link.com/en/home/forum/topic/575870
