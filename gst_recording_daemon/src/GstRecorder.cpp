@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cctype>
+#include <iostream>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -17,6 +19,34 @@ std::string ToLowerCopy(const std::string& value) {
     return static_cast<char>(std::tolower(ch));
   });
   return lowered;
+}
+
+const char* StateChangeReturnToString(GstStateChangeReturn value) {
+  switch (value) {
+    case GST_STATE_CHANGE_FAILURE:
+      return "FAILURE";
+    case GST_STATE_CHANGE_SUCCESS:
+      return "SUCCESS";
+    case GST_STATE_CHANGE_ASYNC:
+      return "ASYNC";
+    case GST_STATE_CHANGE_NO_PREROLL:
+      return "NO_PREROLL";
+  }
+  return "UNKNOWN";
+}
+
+std::string CombineGstErrorMessage(const GError* gst_error, const gchar* debug_info) {
+  std::ostringstream stream;
+  if (gst_error != nullptr && gst_error->message != nullptr) {
+    stream << gst_error->message;
+  }
+  if (debug_info != nullptr && debug_info[0] != '\0') {
+    if (stream.tellp() > 0) {
+      stream << " | ";
+    }
+    stream << debug_info;
+  }
+  return stream.str();
 }
 
 }  // namespace
@@ -39,9 +69,21 @@ bool GstRecorder::start(const std::string& output_file, std::string& error_token
   // objects across attempts.
   shutdown();
 
+  const std::string pipeline_description = build_pipeline_description();
+  std::cerr << "[gst_recording_daemon] Starting recording"
+            << " device=" << device_path_
+            << " fps=" << fps_
+            << " output=" << output_file
+            << " pipeline=\"" << pipeline_description << "\""
+            << std::endl;
+
   GError* parse_error = nullptr;
-  GstElement* pipeline = gst_parse_launch(build_pipeline_description().c_str(), &parse_error);
+  GstElement* pipeline = gst_parse_launch(pipeline_description.c_str(), &parse_error);
   if (pipeline == nullptr) {
+    std::cerr << "[gst_recording_daemon] Failed to parse GStreamer pipeline: "
+              << (parse_error != nullptr && parse_error->message != nullptr ? parse_error->message
+                                                                            : "unknown parse error")
+              << std::endl;
     if (parse_error != nullptr) {
       g_error_free(parse_error);
     }
@@ -55,6 +97,10 @@ bool GstRecorder::start(const std::string& output_file, std::string& error_token
   GstElement* source = gst_bin_get_by_name(GST_BIN(pipeline), "source");
   GstElement* sink = gst_bin_get_by_name(GST_BIN(pipeline), "sink");
   if (source == nullptr || sink == nullptr) {
+    std::cerr << "[gst_recording_daemon] Pipeline is missing required named elements:"
+              << " source=" << (source != nullptr ? "present" : "missing")
+              << " sink=" << (sink != nullptr ? "present" : "missing")
+              << std::endl;
     if (source != nullptr) {
       gst_object_unref(source);
     }
@@ -74,6 +120,7 @@ bool GstRecorder::start(const std::string& output_file, std::string& error_token
 
   GstBus* bus = gst_element_get_bus(pipeline);
   if (bus == nullptr) {
+    std::cerr << "[gst_recording_daemon] Failed to get GStreamer bus from pipeline" << std::endl;
     gst_element_set_state(pipeline, GST_STATE_NULL);
     gst_object_unref(pipeline);
     error_token = "pipeline_build_failed";
@@ -94,6 +141,8 @@ bool GstRecorder::start(const std::string& output_file, std::string& error_token
   // the device and start data flow. This is where "device busy" style failures
   // usually surface.
   const GstStateChangeReturn state_result = gst_element_set_state(pipeline, GST_STATE_PLAYING);
+  std::cerr << "[gst_recording_daemon] gst_element_set_state(..., PLAYING) returned "
+            << StateChangeReturnToString(state_result) << std::endl;
   if (state_result == GST_STATE_CHANGE_FAILURE) {
     error_token = "pipeline_start_failed";
 
@@ -104,16 +153,10 @@ bool GstRecorder::start(const std::string& output_file, std::string& error_token
       gchar* debug_info = nullptr;
       gst_message_parse_error(error_message, &gst_error, &debug_info);
 
-      std::string combined_message;
-      if (gst_error != nullptr && gst_error->message != nullptr) {
-        combined_message += gst_error->message;
-      }
-      if (debug_info != nullptr) {
-        if (!combined_message.empty()) {
-          combined_message += " ";
-        }
-        combined_message += debug_info;
-      }
+      const std::string combined_message = CombineGstErrorMessage(gst_error, debug_info);
+      std::cerr << "[gst_recording_daemon] Pipeline failed to enter PLAYING: "
+                << (combined_message.empty() ? "no detailed error from GStreamer" : combined_message)
+                << std::endl;
 
       const std::string mapped_token = map_error_to_token(combined_message);
       if (mapped_token == "device_busy") {
@@ -125,6 +168,10 @@ bool GstRecorder::start(const std::string& output_file, std::string& error_token
       }
       g_free(debug_info);
       gst_message_unref(error_message);
+    } else {
+      std::cerr << "[gst_recording_daemon] Pipeline failed to enter PLAYING but no GST_MESSAGE_ERROR "
+                   "was available on the bus within 200 ms"
+                << std::endl;
     }
 
     shutdown();
@@ -136,6 +183,7 @@ bool GstRecorder::start(const std::string& output_file, std::string& error_token
   bus_thread_ = std::thread(&GstRecorder::bus_loop, this, bus, generation);
 
   error_token.clear();
+  std::cerr << "[gst_recording_daemon] Recording pipeline started successfully" << std::endl;
   return true;
 }
 
@@ -158,6 +206,7 @@ bool GstRecorder::stop(std::string& error_token) {
   // For MP4, EOS matters. `mp4mux` writes the final container metadata only
   // once the stream ends cleanly. Without EOS, the file can exist on disk but
   // still be incomplete or unplayable.
+  std::cerr << "[gst_recording_daemon] Sending EOS to stop recording cleanly" << std::endl;
   gst_element_send_event(pipeline, gst_event_new_eos());
 
   std::unique_lock<std::mutex> lock(mutex_);
@@ -170,11 +219,15 @@ bool GstRecorder::stop(std::string& error_token) {
   shutdown();
 
   if (saw_runtime_error) {
+    std::cerr << "[gst_recording_daemon] Stop completed with runtime error token="
+              << (runtime_error_token.empty() ? kDefaultError : runtime_error_token)
+              << std::endl;
     error_token = runtime_error_token.empty() ? kDefaultError : runtime_error_token;
     return false;
   }
 
   error_token.clear();
+  std::cerr << "[gst_recording_daemon] Recording stopped cleanly" << std::endl;
   return true;
 }
 
@@ -196,6 +249,7 @@ void GstRecorder::shutdown() {
   }
 
   if (pipeline != nullptr) {
+    std::cerr << "[gst_recording_daemon] Tearing down GStreamer pipeline" << std::endl;
     gst_element_set_state(pipeline, GST_STATE_NULL);
   }
 
@@ -239,6 +293,10 @@ void GstRecorder::bus_loop(GstBus* bus, std::uint64_t generation) {
       // Reaching EOS without an explicit STOP is treated as unexpected because
       // this daemon expects the capture stream to run until another process
       // tells it to stop.
+      if (should_report_error) {
+        std::cerr << "[gst_recording_daemon] Unexpected EOS received from recording pipeline"
+                  << std::endl;
+      }
       if (should_report_error && callback) {
         callback(kDefaultError);
       }
@@ -252,20 +310,16 @@ void GstRecorder::bus_loop(GstBus* bus, std::uint64_t generation) {
       gchar* debug_info = nullptr;
       gst_message_parse_error(message, &gst_error, &debug_info);
 
-      std::string combined_message;
-      if (gst_error != nullptr && gst_error->message != nullptr) {
-        combined_message += gst_error->message;
-      }
-      if (debug_info != nullptr) {
-        if (!combined_message.empty()) {
-          combined_message += " ";
-        }
-        combined_message += debug_info;
-      }
+      const std::string combined_message = CombineGstErrorMessage(gst_error, debug_info);
 
       const std::string error_token = map_error_to_token(combined_message);
       RuntimeErrorCallback callback;
       GstElement* pipeline = nullptr;
+
+      std::cerr << "[gst_recording_daemon] Runtime GStreamer error token=" << error_token
+                << " details="
+                << (combined_message.empty() ? "no detailed error from GStreamer" : combined_message)
+                << std::endl;
 
       {
         std::lock_guard<std::mutex> lock(mutex_);
