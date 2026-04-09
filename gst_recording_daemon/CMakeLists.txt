@@ -9,6 +9,9 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(GSTREAMER REQUIRED IMPORTED_TARGET gstreamer-1.0 gstreamer-base-1.0)
 
 add_executable(gst_recording_daemon
+  src/ControlServer.cpp
+  src/GstRecorder.cpp
+  src/Protocol.cpp
   src/main.cpp
   src/RecorderDaemon.cpp
 )

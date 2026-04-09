@@ -77,6 +77,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  // GStreamer uses a global initialization step similar to many C libraries.
+  // We do this once in main before any recorder objects are created.
   gst_init(&argc, &argv);
 
   struct sigaction action {};
@@ -87,6 +89,9 @@ int main(int argc, char** argv) {
   sigaction(SIGTERM, &action, nullptr);
 
   {
+    // RecorderDaemon is now just the high-level coordinator. It owns the
+    // control socket server, the GStreamer recorder wrapper, and the public
+    // daemon state that the line protocol exposes.
     RecorderDaemon daemon(device_path, fps, socket_path);
     if (!daemon.initialize()) {
       gst_deinit();
@@ -103,6 +108,8 @@ int main(int argc, char** argv) {
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
+    // Shutdown is explicit so active recordings get a chance to send EOS and
+    // finalize their MP4 files before the process exits.
     daemon.request_shutdown();
     daemon_thread.join();
   }
