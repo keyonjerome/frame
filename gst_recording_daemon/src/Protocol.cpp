@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <sstream>
 
 namespace {
 
@@ -103,19 +104,96 @@ std::string DashIfEmpty(const std::string& value) {
   return value.empty() ? "-" : value;
 }
 
-std::string FormatStatusLine(const StatusSnapshot& snapshot) {
-  return "STATUS " + StateToString(snapshot.state) + " " +
-         std::to_string(HealthyFlag(snapshot.state)) + " " +
-         DashIfEmpty(snapshot.current_file) + " " +
-         DashIfEmpty(snapshot.last_error);
+std::string JsonEscape(const std::string& value) {
+  std::ostringstream stream;
+  for (const unsigned char ch : value) {
+    switch (ch) {
+      case '"':
+        stream << "\\\"";
+        break;
+      case '\\':
+        stream << "\\\\";
+        break;
+      case '\b':
+        stream << "\\b";
+        break;
+      case '\f':
+        stream << "\\f";
+        break;
+      case '\n':
+        stream << "\\n";
+        break;
+      case '\r':
+        stream << "\\r";
+        break;
+      case '\t':
+        stream << "\\t";
+        break;
+      default:
+        if (ch < 0x20) {
+          stream << "\\u";
+          const char* digits = "0123456789abcdef";
+          stream << '0' << '0' << digits[(ch >> 4) & 0x0f] << digits[ch & 0x0f];
+        } else {
+          stream << static_cast<char>(ch);
+        }
+        break;
+    }
+  }
+  return stream.str();
+}
+
+std::string FormatStatusLine(const StatusSnapshot& snapshot,
+                             const CameraStatusSnapshot& camera) {
+  std::ostringstream stream;
+  stream << "{\"type\":\"status\","
+         << "\"state\":\"" << StateToString(snapshot.state) << "\","
+         << "\"healthy\":" << (HealthyFlag(snapshot.state) != 0 ? "true" : "false") << ","
+         << "\"current_file\":\"" << JsonEscape(snapshot.current_file) << "\","
+         << "\"last_error\":\"" << JsonEscape(snapshot.last_error) << "\","
+         << "\"capture_path\":\"" << JsonEscape(snapshot.capture_path) << "\","
+         << "\"local_recording_warning\":\""
+         << JsonEscape(snapshot.local_recording_warning) << "\","
+         << "\"camera\":{";
+
+  if (!camera.checked) {
+    stream << "\"ok\":false,\"error\":\"not_checked\"";
+  } else if (camera.ok) {
+    stream << "\"ok\":true,"
+           << "\"info\":" << camera.info_json << ","
+           << "\"mode\":\"" << JsonEscape(camera.mode) << "\","
+           << "\"media\":{"
+           << "\"remain_minutes\":\"" << JsonEscape(camera.media_remain_minutes) << "\","
+           << "\"free\":\"" << JsonEscape(camera.media_free) << "\","
+           << "\"total\":\"" << JsonEscape(camera.media_total) << "\","
+           << "\"dcim_visible\":" << (camera.dcim_visible ? "true" : "false") << "}";
+  } else {
+    stream << "\"ok\":false,\"error\":\"" << JsonEscape(camera.error) << "\"";
+  }
+
+  stream << "}}";
+  return stream.str();
 }
 
 std::string FormatHeartbeatLine(const StatusSnapshot& snapshot) {
-  return "HEARTBEAT " + StateToString(snapshot.state) + " " +
-         std::to_string(HealthyFlag(snapshot.state)) + " " +
-         DashIfEmpty(snapshot.current_file);
+  std::ostringstream stream;
+  stream << "{\"type\":\"heartbeat\","
+         << "\"state\":\"" << StateToString(snapshot.state) << "\","
+         << "\"healthy\":" << (HealthyFlag(snapshot.state) != 0 ? "true" : "false") << ","
+         << "\"current_file\":\"" << JsonEscape(snapshot.current_file) << "\","
+         << "\"capture_path\":\"" << JsonEscape(snapshot.capture_path) << "\"}";
+  return stream.str();
 }
 
 std::string FormatErrorLine(const std::string& reason) {
-  return "ERR " + DashIfEmpty(reason);
+  return "{\"type\":\"error\",\"ok\":false,\"reason\":\"" + JsonEscape(reason) + "\"}";
+}
+
+std::string FormatOkLine(const std::string& type, const std::string& state) {
+  return "{\"type\":\"" + JsonEscape(type) + "\",\"ok\":true,\"state\":\"" +
+         JsonEscape(state) + "\"}";
+}
+
+std::string FormatPongLine() {
+  return "{\"type\":\"pong\",\"ok\":true}";
 }

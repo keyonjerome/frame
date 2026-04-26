@@ -36,6 +36,20 @@ struct StatusSnapshot {
   RecorderState state{RecorderState::IDLE};
   std::string current_file;
   std::string last_error;
+  std::string capture_path{"none"};
+  std::string local_recording_warning;
+};
+
+struct CameraStatusSnapshot {
+  bool checked{false};
+  bool ok{false};
+  std::string info_json;
+  std::string error;
+  std::string mode;
+  std::string media_remain_minutes;
+  std::string media_free;
+  std::string media_total;
+  bool dcim_visible{false};
 };
 
 std::string TrimAsciiWhitespace(const std::string& value);
@@ -45,6 +59,10 @@ std::string StateToString(RecorderState state);
 int HealthyFlag(RecorderState state);
 std::string DashIfEmpty(const std::string& value);
 
-std::string FormatStatusLine(const StatusSnapshot& snapshot);
+std::string JsonEscape(const std::string& value);
+std::string FormatStatusLine(const StatusSnapshot& snapshot,
+                             const CameraStatusSnapshot& camera);
 std::string FormatHeartbeatLine(const StatusSnapshot& snapshot);
 std::string FormatErrorLine(const std::string& reason);
+std::string FormatOkLine(const std::string& type, const std::string& state);
+std::string FormatPongLine();

@@ -15,12 +15,16 @@ constexpr std::chrono::milliseconds kHeartbeatPeriod{100};
 
 }  // namespace
 
-RecorderDaemon::RecorderDaemon(std::string device_path, int fps, std::string socket_path)
+RecorderDaemon::RecorderDaemon(std::string device_path,
+                               std::string camera_host,
+                               int fps,
+                               std::string socket_path)
     : device_path_(std::move(device_path)),
+      camera_host_(std::move(camera_host)),
       fps_(fps),
       socket_path_(std::move(socket_path)),
       control_server_(socket_path_),
-      gst_recorder_(device_path_, fps_) {
+      gst_recorder_(device_path_, camera_host_, fps_) {
   gst_recorder_.set_runtime_error_callback(
       [this](const std::string& error_token) { on_recorder_runtime_error(error_token); });
 }
@@ -80,7 +84,7 @@ std::string RecorderDaemon::handle_command(const std::string& line) {
     case CommandType::kEmpty:
       return "";
     case CommandType::kPing:
-      return "PONG";
+      return FormatPongLine();
     case CommandType::kStatus:
       return get_status_line();
     case CommandType::kStart: {
@@ -88,14 +92,14 @@ std::string RecorderDaemon::handle_command(const std::string& line) {
       if (!start_recording(command.argument, error)) {
         return FormatErrorLine(error);
       }
-      return "OK STARTING";
+      return FormatOkLine("start", "RECORDING");
     }
     case CommandType::kStop: {
       std::string error;
       if (!stop_recording(error)) {
         return FormatErrorLine(error);
       }
-      return "OK STOPPING";
+      return FormatOkLine("stop", "IDLE");
     }
     case CommandType::kInvalid:
       return FormatErrorLine(command.error_reason);
@@ -130,16 +134,17 @@ bool RecorderDaemon::start_recording(const std::string& output_dir, std::string&
     return false;
   }
 
-  const std::filesystem::path output_file = output_directory / generate_output_filename();
+  const std::filesystem::path output_stem = output_directory / generate_output_filename();
 
   {
     std::lock_guard<std::mutex> lock(state_mutex_);
     state_ = RecorderState::STARTING;
-    current_output_file_ = output_file.lexically_normal().string();
+    current_output_file_.clear();
     last_error_.clear();
   }
 
-  if (!gst_recorder_.start(current_output_file_, err)) {
+  std::string actual_output_file;
+  if (!gst_recorder_.start(output_stem.lexically_normal().string(), actual_output_file, err)) {
     transition_to_error(err, true);
     return false;
   }
@@ -147,6 +152,7 @@ bool RecorderDaemon::start_recording(const std::string& output_dir, std::string&
   {
     std::lock_guard<std::mutex> lock(state_mutex_);
     state_ = RecorderState::RECORDING;
+    current_output_file_ = actual_output_file;
   }
 
   err.clear();
@@ -182,7 +188,18 @@ bool RecorderDaemon::stop_recording(std::string& err) {
 }
 
 std::string RecorderDaemon::get_status_line() const {
-  return FormatStatusLine(get_status_snapshot());
+  const GstRecorder::CameraStatus recorder_camera = gst_recorder_.fetch_camera_status();
+  CameraStatusSnapshot camera;
+  camera.checked = recorder_camera.checked;
+  camera.ok = recorder_camera.ok;
+  camera.info_json = recorder_camera.info_json;
+  camera.error = recorder_camera.error;
+  camera.mode = recorder_camera.mode;
+  camera.media_remain_minutes = recorder_camera.media_remain_minutes;
+  camera.media_free = recorder_camera.media_free;
+  camera.media_total = recorder_camera.media_total;
+  camera.dcim_visible = recorder_camera.dcim_visible;
+  return FormatStatusLine(get_status_snapshot(), camera);
 }
 
 void RecorderDaemon::heartbeat_loop() {
@@ -217,11 +234,15 @@ void RecorderDaemon::transition_to_error(const std::string& error_token,
 }
 
 StatusSnapshot RecorderDaemon::get_status_snapshot() const {
-  std::lock_guard<std::mutex> lock(state_mutex_);
   StatusSnapshot snapshot;
-  snapshot.state = state_;
-  snapshot.current_file = current_output_file_;
-  snapshot.last_error = last_error_;
+  {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    snapshot.state = state_;
+    snapshot.current_file = current_output_file_;
+    snapshot.last_error = last_error_;
+  }
+  snapshot.capture_path = capture_path_to_string(gst_recorder_.active_capture_path());
+  snapshot.local_recording_warning = gst_recorder_.local_recording_warning();
   return snapshot;
 }
 
@@ -233,6 +254,18 @@ std::string RecorderDaemon::generate_output_filename() const {
   localtime_r(&now_time, &local_time);
 
   std::ostringstream stream;
-  stream << "recording_" << std::put_time(&local_time, "%Y%m%d_%H%M%S") << ".mp4";
+  stream << "recording_" << std::put_time(&local_time, "%Y%m%d_%H%M%S");
   return stream.str();
+}
+
+std::string RecorderDaemon::capture_path_to_string(GstRecorder::CapturePath capture_path) {
+  switch (capture_path) {
+    case GstRecorder::CapturePath::kHdmi:
+      return "hdmi";
+    case GstRecorder::CapturePath::kSrt:
+      return "srt";
+    case GstRecorder::CapturePath::kNone:
+      return "none";
+  }
+  return "none";
 }

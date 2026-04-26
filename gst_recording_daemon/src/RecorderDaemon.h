@@ -12,7 +12,10 @@
 
 class RecorderDaemon {
  public:
-  RecorderDaemon(std::string device_path, int fps, std::string socket_path);
+  RecorderDaemon(std::string device_path,
+                 std::string camera_host,
+                 int fps,
+                 std::string socket_path);
   ~RecorderDaemon();
 
   bool initialize();
@@ -30,8 +33,10 @@ class RecorderDaemon {
   void transition_to_error(const std::string& error_token, bool clear_current_file);
   StatusSnapshot get_status_snapshot() const;
   std::string generate_output_filename() const;
+  static std::string capture_path_to_string(GstRecorder::CapturePath capture_path);
 
   const std::string device_path_;
+  const std::string camera_host_;
   const int fps_;
   const std::string socket_path_;
 

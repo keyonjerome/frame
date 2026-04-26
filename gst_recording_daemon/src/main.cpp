@@ -14,6 +14,7 @@
 namespace {
 
 constexpr char kDefaultDevice[] = "/dev/video0";
+constexpr char kDefaultCameraHost[] = "10.98.32.1";
 constexpr char kDefaultSocketPath[] = "/tmp/filmer_recorder.sock";
 constexpr int kDefaultFps = 60;
 
@@ -25,7 +26,8 @@ void handle_signal(int) {
 
 void print_usage(const char* program_name) {
   std::cerr << "Usage: " << program_name
-            << " [--device /dev/video0] [--fps 60] [--socket-path /tmp/filmer_recorder.sock]"
+            << " [--device /dev/video0] [--camera-host 10.98.32.1] [--fps 60]"
+               " [--socket-path /tmp/filmer_recorder.sock]"
             << std::endl;
 }
 
@@ -33,6 +35,7 @@ void print_usage(const char* program_name) {
 
 int main(int argc, char** argv) {
   std::string device_path = kDefaultDevice;
+  std::string camera_host = kDefaultCameraHost;
   std::string socket_path = kDefaultSocketPath;
   int fps = kDefaultFps;
 
@@ -44,6 +47,14 @@ int main(int argc, char** argv) {
         return 1;
       }
       device_path = argv[++index];
+      continue;
+    }
+    if (arg == "--camera-host") {
+      if (index + 1 >= argc) {
+        print_usage(argv[0]);
+        return 1;
+      }
+      camera_host = argv[++index];
       continue;
     }
     if (arg == "--fps") {
@@ -92,7 +103,7 @@ int main(int argc, char** argv) {
     // RecorderDaemon is now just the high-level coordinator. It owns the
     // control socket server, the GStreamer recorder wrapper, and the public
     // daemon state that the line protocol exposes.
-    RecorderDaemon daemon(device_path, fps, socket_path);
+    RecorderDaemon daemon(device_path, camera_host, fps, socket_path);
     if (!daemon.initialize()) {
       gst_deinit();
       return 1;
