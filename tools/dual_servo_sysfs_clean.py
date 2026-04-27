@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import sys
 import time
 from pathlib import Path
 import os
@@ -162,6 +163,10 @@ class DualServo:
 
 
 def main():
+    if os.geteuid() != 0:
+        print("ERROR: dual_servo_sysfs_clean.py must be run as root (sudo).")
+        sys.exit(1)
+
     pwmA = SysfsPWM(SERVO_A_PWMCHIP, SERVO_A_CH)
     pwmB = SysfsPWM(SERVO_B_PWMCHIP, SERVO_B_CH)
 
