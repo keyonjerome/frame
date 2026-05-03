@@ -156,6 +156,31 @@ printf 'STATUS\n' | socat - UNIX-CONNECT:/tmp/filmer_recorder_test.sock
 
 `STATUS` should show `capture_path:"none"` while idle, camera `ok:true`, and media fields when the Z-CAM USB-C storage is visible.
 
+### ROS 2 Docker Launch
+
+The daemon runs on the Jetson host while `frame_all_stream_only_usb.launch.py`
+runs inside the Isaac ROS Docker container. The launch file therefore has two
+host/container-sensitive paths:
+
+- `gst_socket_path` must match the host daemon `--socket-path`. On Jetson,
+  `run_dev.sh` bind-mounts `/tmp`, so `/tmp/filmer_recorder_test.sock` is
+  visible inside the container.
+- `gst_output_dir` is the directory sent to the host daemon in `START`. It must
+  be valid on the host, not just inside the container. The launch default maps
+  `/workspaces/isaac_ros-dev/...` to
+  `/mnt/nova_ssd/workspaces/isaac_ros-dev/...`; override
+  `FRAME_HOST_ISAAC_ROS_WS` or `gst_output_dir:=...` if your host workspace is
+  elsewhere.
+
+With the daemon command above, launch the USB bringup from inside the container
+with:
+
+```bash
+cd /workspaces/isaac_ros-dev/src/frame/ros2_ws
+source install/setup.bash
+ros2 launch frame_bringup frame_all_stream_only_usb.launch.py
+```
+
 ### Recording Test
 
 In the second shell:

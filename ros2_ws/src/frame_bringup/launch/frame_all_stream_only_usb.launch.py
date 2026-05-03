@@ -9,6 +9,24 @@ def _default_video_dir() -> str:
     return os.path.join(os.path.expanduser('~'), 'videos')
 
 
+def _default_gst_video_dir() -> str:
+    override = os.environ.get('FRAME_GST_OUTPUT_DIR', '').strip()
+    if override:
+        return override
+
+    video_dir = _default_video_dir()
+    container_ws = os.environ.get('ISAAC_ROS_WS', '/workspaces/isaac_ros-dev')
+    host_ws = os.environ.get(
+        'FRAME_HOST_ISAAC_ROS_WS',
+        '/mnt/nova_ssd/workspaces/isaac_ros-dev',
+    )
+    container_ws = container_ws.rstrip('/')
+    host_ws = host_ws.rstrip('/')
+    if video_dir == container_ws or video_dir.startswith(container_ws + '/'):
+        return host_ws + video_dir[len(container_ws):]
+    return video_dir
+
+
 def _default_rosbag_dir() -> str:
     for parent in Path(__file__).resolve().parents:
         if parent.name == 'frame':
@@ -73,45 +91,33 @@ def generate_launch_description() -> LaunchDescription:
         default_value=_default_video_dir(),
         description='Directory to store MP4 exports for the web UI.',
     )
+    gst_output_dir_arg = DeclareLaunchArgument(
+        'gst_output_dir',
+        default_value=_default_gst_video_dir(),
+        description='Host-visible directory passed to gst_recording_daemon START.',
+    )
     storage_id_arg = DeclareLaunchArgument(
         'storage_id',
         default_value='',
         description='Optional rosbag2 storage plugin (e.g., mcap).',
     )
-    device_index_arg = DeclareLaunchArgument(
-        'device_index',
-        default_value='0',
-        description='USB camera index (ignored if device_path is set).',
-    )
-    device_path_arg = DeclareLaunchArgument(
-        'device_path',
-        default_value='/dev/video4',
-        description='USB camera device path (e.g., /dev/video2).',
-    )
-    width_arg = DeclareLaunchArgument(
-        'width',
-        default_value='0',
-        description='Requested capture width (0 = driver default).',
-    )
-    height_arg = DeclareLaunchArgument(
-        'height',
-        default_value='0',
-        description='Requested capture height (0 = driver default).',
-    )
-    fps_arg = DeclareLaunchArgument(
-        'fps',
-        default_value='0.0',
-        description='Requested capture frame rate (0 = driver default).',
-    )
-    fourcc_arg = DeclareLaunchArgument(
-        'fourcc',
-        default_value='MJPG',
-        description='FourCC pixel format (empty string to skip).',
-    )
     usb_record_topic_arg = DeclareLaunchArgument(
         'usb_record_topic',
         default_value='/usb_cam_stream/record',
         description='Topic to toggle USB recording.',
+    )
+    gst_socket_path_arg = DeclareLaunchArgument(
+        'gst_socket_path',
+        default_value=os.environ.get(
+            'GST_RECORDING_DAEMON_SOCKET',
+            '/tmp/filmer_recorder_test.sock',
+        ),
+        description='Unix socket path for gst_recording_daemon.',
+    )
+    gst_command_timeout_sec_arg = DeclareLaunchArgument(
+        'gst_command_timeout_sec',
+        default_value='15.0',
+        description='Timeout for gst_recording_daemon commands.',
     )
     teleop_params_arg = DeclareLaunchArgument(
         'teleop_params',
@@ -161,21 +167,16 @@ def generate_launch_description() -> LaunchDescription:
         }],
     )
 
-    stream_node = Node(
-        package='usb_cam_stream',
-        executable='usb_cam_stream',
-        name='usb_cam_stream',
+    gst_communicator_node = Node(
+        package='gst_communicator',
+        executable='gst_communicator',
+        name='gst_communicator',
         output='screen',
         parameters=[{
-            'device_index': LaunchConfiguration('device_index'),
-            'device_path': LaunchConfiguration('device_path'),
-            'width': LaunchConfiguration('width'),
-            'height': LaunchConfiguration('height'),
-            'fps': LaunchConfiguration('fps'),
-            'fourcc': LaunchConfiguration('fourcc'),
-            'video_output_dir': LaunchConfiguration('video_output_dir'),
-            'record_prefix': LaunchConfiguration('bag_prefix'),
-            'record_command_topic': LaunchConfiguration('usb_record_topic'),
+            'record_button': LaunchConfiguration('record_button'),
+            'socket_path': LaunchConfiguration('gst_socket_path'),
+            'output_dir': LaunchConfiguration('gst_output_dir'),
+            'command_timeout_sec': LaunchConfiguration('gst_command_timeout_sec'),
         }],
     )
     teleop_node = Node(
@@ -188,7 +189,7 @@ def generate_launch_description() -> LaunchDescription:
     )
     servo_joy_node = Node(
         package='frame_servo_control',
-        executable='dual_servo_control',
+        executable='dual_servo_velocity_control',
         name='dual_servo_control',
         output='screen',
         parameters=[LaunchConfiguration('servo_params')],
@@ -224,14 +225,11 @@ def generate_launch_description() -> LaunchDescription:
             record_topics_arg,
             bag_prefix_arg,
             video_output_dir_arg,
+            gst_output_dir_arg,
             storage_id_arg,
-            device_index_arg,
-            device_path_arg,
-            width_arg,
-            height_arg,
-            fps_arg,
-            fourcc_arg,
             usb_record_topic_arg,
+            gst_socket_path_arg,
+            gst_command_timeout_sec_arg,
             teleop_params_arg,
             velocity_smoother_params_arg,
             servo_params_arg,
@@ -239,7 +237,7 @@ def generate_launch_description() -> LaunchDescription:
             cmd_vel_out_arg,
             d421_launch,
             record_node,
-            stream_node,
+            gst_communicator_node,
             teleop_node,
             servo_joy_node,
             velocity_smoother_node,

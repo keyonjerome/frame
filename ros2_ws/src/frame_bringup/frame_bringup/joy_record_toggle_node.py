@@ -4,13 +4,9 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-import cv2
-import numpy as np
 import rclpy
-import rosbag2_py
-from cv_bridge import CvBridge
 from rclpy.node import Node
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import Image, Joy
@@ -86,7 +82,7 @@ class JoyRecordToggleNode(Node):
         self._current_bag_path: Optional[Path] = None
         self._last_button_state = False
         self._topic_warning_emitted = False
-        self._bridge = CvBridge()
+        self._bridge: Optional[Any] = None
         self._usb_pub = self.create_publisher(Bool, self.usb_record_topic, 10)
 
         self.create_subscription(Joy, 'joy', self._on_joy, 10)
@@ -198,7 +194,28 @@ class JoyRecordToggleNode(Node):
         msg.data = enabled
         self._usb_pub.publish(msg)
 
-    def _open_reader(self, bag_path: Path, storage_id: str) -> rosbag2_py.SequentialReader:
+    def _load_video_dependencies(self) -> bool:
+        if self._bridge is not None:
+            return True
+        try:
+            from cv_bridge import CvBridge
+
+            import cv2  # noqa: F401
+            import numpy as np  # noqa: F401
+            import rosbag2_py  # noqa: F401
+        except Exception as exc:  # noqa: BLE001
+            self.get_logger().error(
+                'MP4 conversion dependencies are unavailable; rosbag recording '
+                f'can continue, but conversion is disabled: {exc}'
+            )
+            return False
+
+        self._bridge = CvBridge()
+        return True
+
+    def _open_reader(self, bag_path: Path, storage_id: str) -> Any:
+        import rosbag2_py
+
         reader = rosbag2_py.SequentialReader()
         storage_options = rosbag2_py.StorageOptions(
             uri=str(bag_path), storage_id=storage_id
@@ -224,6 +241,12 @@ class JoyRecordToggleNode(Node):
         return storage_id
 
     def _convert_bag_to_mp4(self, bag_path: Path) -> None:
+        if not self._load_video_dependencies():
+            return
+
+        import cv2
+        import numpy as np
+
         storage_id = self._detect_storage_id(bag_path)
         topics = [t for t in (self.image_topic, self.depth_topic) if t]
         if not topics:
@@ -237,14 +260,14 @@ class JoyRecordToggleNode(Node):
             return
 
         self.video_output_dir.mkdir(parents=True, exist_ok=True)
-        writers: Dict[str, cv2.VideoWriter] = {}
+        writers: Dict[str, Any] = {}
         frame_counts: Dict[str, int] = {}
         input_counts: Dict[str, int] = {}
         last_stamp_ns: Dict[str, int] = {}
         delta_sum_ns: Dict[str, int] = {}
         delta_count: Dict[str, int] = {}
         next_output_ns: Dict[str, int] = {}
-        last_frame: Dict[str, np.ndarray] = {}
+        last_frame: Dict[str, Any] = {}
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         target_fps = self.mp4_fps if self.mp4_fps > 0.0 else 30.0
         output_interval_ns = max(1, int(1e9 / target_fps))
@@ -339,7 +362,12 @@ class JoyRecordToggleNode(Node):
                     f'input {input_count} frames ~{avg_fps:.2f} fps)'
                 )
 
-    def _decode_image(self, msg: Image) -> Optional[np.ndarray]:
+    def _decode_image(self, msg: Image) -> Optional[Any]:
+        import cv2
+        import numpy as np
+
+        if self._bridge is None:
+            return None
         try:
             return self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except Exception:
@@ -359,7 +387,12 @@ class JoyRecordToggleNode(Node):
             return cv2.cvtColor(frame.astype(np.uint8), cv2.COLOR_GRAY2BGR)
         return frame
 
-    def _colorize_depth(self, msg: Image) -> Optional[np.ndarray]:
+    def _colorize_depth(self, msg: Image) -> Optional[Any]:
+        import cv2
+        import numpy as np
+
+        if self._bridge is None:
+            return None
         try:
             depth = self._bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
         except Exception:

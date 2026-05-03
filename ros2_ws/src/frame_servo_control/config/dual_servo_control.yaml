@@ -7,3 +7,19 @@ dual_servo_control:
     reset_button_index: 2
     reset_angle_deg: 45.0
     angle_range_deg: 25.0
+    max_velocity_deg_s: 10.0
+    control_hz: 50.0
+    deadband: 0.05
+
+dual_servo_velocity_control:
+  ros__parameters:
+    joy_topic: joy
+    axis_index: 4
+    invert_axis: false
+    startup_hold_s: 3.0
+    reset_button_index: 2
+    reset_angle_deg: 45.0
+    angle_range_deg: 25.0
+    max_velocity_deg_s: 10.0
+    control_hz: 50.0
+    deadband: 0.05
